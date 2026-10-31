@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Menu,
   Bell,
@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 
 export default function AdminNavbar({ onToggleMobile }) {
-  const location = useLocation();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -25,22 +24,6 @@ export default function AdminNavbar({ onToggleMobile }) {
     ? JSON.parse(storedUser)
     : { name: 'Kyaw Swar Hein', email: 'admin@recirculate.mm', role: 'Super Administrator' };
 
-  // Generate page title and breadcrumb from route path
-  const getPageInfo = () => {
-    const path = location.pathname;
-    if (path.includes('/dashboard')) return { title: 'Dashboard Overview', breadcrumb: 'Operations' };
-    if (path.includes('/members')) return { title: 'Member Management', breadcrumb: 'Directory' };
-    if (path.includes('/categories')) return { title: 'Category Management', breadcrumb: 'Taxonomy' };
-    if (path.includes('/items')) return { title: 'Item Moderation', breadcrumb: 'Inventory' };
-    if (path.includes('/exchanges')) return { title: 'Exchange Monitoring', breadcrumb: 'Trades & Transit' };
-    if (path.includes('/reports')) return { title: 'Reports & Disputes', breadcrumb: 'Safety & Trust' };
-    if (path.includes('/history')) return { title: 'Exchange History', breadcrumb: 'Archive & Audits' };
-    if (path.includes('/profile')) return { title: 'Admin Profile', breadcrumb: 'Settings' };
-    return { title: 'Admin Console', breadcrumb: 'Overview' };
-  };
-
-  const { title, breadcrumb } = getPageInfo();
-
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
@@ -49,7 +32,7 @@ export default function AdminNavbar({ onToggleMobile }) {
 
   return (
     <header className="h-16 bg-[#DDD1BF] border-b border-[#c8bba7] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-      {/* Left: Mobile hamburger & breadcrumbs */}
+      {/* Left: Mobile hamburger */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMobile}
@@ -58,17 +41,6 @@ export default function AdminNavbar({ onToggleMobile }) {
         >
           <Menu className="w-5 h-5" />
         </button>
-
-        <div>
-          <div className="flex items-center gap-2 text-[11px] text-[#5C4033] font-medium">
-            <span className="hover:text-[#2C1D15] transition-colors">Admin</span>
-            <span>/</span>
-            <span className="text-[#2C1D15] font-semibold">{breadcrumb}</span>
-          </div>
-          <h1 className="text-sm sm:text-base font-bold text-[#2C1D15] leading-tight">
-            {title}
-          </h1>
-        </div>
       </div>
 
       {/* Right: Quick actions, notifications, and profile dropdown */}

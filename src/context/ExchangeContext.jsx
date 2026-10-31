@@ -91,34 +91,68 @@ export function ExchangeProvider({ children }) {
   // Accept Incoming Request
   const acceptRequest = (requestId) => {
     const req = requests.find(r => r.id === requestId);
-    if (!req) return;
+    if (!req) return null;
 
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Accepted' } : r));
+
+    const isIntercity = Boolean(
+      req.isIntercity ||
+      req.handoverMethod?.toLowerCase().includes('courier') ||
+      req.handoverMethod?.toLowerCase().includes('express') ||
+      req.handoverMethod?.toLowerCase().includes('intercity') ||
+      (req.requestedItem?.city && req.offeredItem?.city && req.requestedItem.city !== req.offeredItem.city)
+    );
 
     // Automatically instantiate an ongoing exchange
     const newExchange = {
       id: `EXC-${Math.floor(1000 + Math.random() * 9000)}`,
-      status: 'In Progress',
+      status: isIntercity ? 'In Transit' : 'In Progress',
+      isIntercity: isIntercity,
+      handoverMethod: req.handoverMethod || (isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup'),
       initiatedDate: new Date().toISOString().split('T')[0],
       itemA: {
         title: req.requestedItem.title,
-        ownerName: `${currentUser?.name || 'You'} (You)`,
-        ownerCity: req.requestedItem.city,
+        ownerName: `${currentUser?.name || 'Thant Zin'} (You)`,
+        ownerCity: req.requestedItem.city || 'Mandalay',
         image: req.requestedItem.image
       },
       itemB: {
         title: req.offeredItem.title,
         ownerName: req.requester?.name || 'Partner',
-        ownerCity: req.offeredItem?.city || 'Local',
+        ownerCity: req.offeredItem?.city || 'Other City',
         image: req.offeredItem?.image
       },
-      handoverMethod: req.handoverMethod || 'In-Person Meetup',
-      meetupLocation: 'Agreed community location',
+      ...(isIntercity ? {
+        partyA: {
+          name: `${currentUser?.name || 'Thant Zin'} (You)`,
+          city: req.requestedItem.city || 'Mandalay',
+          courier: 'Royal Express',
+          trackingNumber: '',
+          dispatched: false,
+          confirmedReceipt: false
+        },
+        partyB: {
+          name: req.requester?.name || 'Partner',
+          city: req.offeredItem?.city || 'Yangon',
+          courier: 'Elite Cargo Express',
+          trackingNumber: `EC-${Math.floor(1000 + Math.random() * 9000)}-YM`,
+          dispatched: true,
+          confirmedReceipt: false
+        },
+        courierTracking: {
+          route: `${req.requestedItem.city || 'Mandalay'} ⇄ ${req.offeredItem.city || 'Yangon'} Express Freight`,
+          currentLocation: 'Yangon Cargo Sorting Hub (Partner Dispatched)',
+          eta: 'Arriving in 2-3 Business Days'
+        }
+      } : {
+        meetupLocation: 'Agreed community location in ' + (req.requestedItem?.city || 'Mandalay')
+      }),
       isCompleted: false,
       disputeFiled: false
     };
 
     setExchanges(prev => [newExchange, ...prev]);
+    return newExchange;
   };
 
   // Reject Incoming Request
@@ -181,7 +215,8 @@ export function ExchangeProvider({ children }) {
         ...currentParty,
         dispatched: true,
         courier: dispatchData.courier || currentParty.courier || 'Royal Express',
-        trackingNumber: dispatchData.trackingNumber || currentParty.trackingNumber || 'RX-LIVE-TRACK'
+        trackingNumber: dispatchData.trackingNumber || currentParty.trackingNumber || 'RX-LIVE-TRACK',
+        receiptImage: dispatchData.receiptImage || currentParty.receiptImage || null
       };
       return {
         ...exc,
@@ -205,7 +240,8 @@ export function ExchangeProvider({ children }) {
       category: disputeData.category,
       date: new Date().toISOString().split('T')[0],
       reason: disputeData.reason,
-      evidenceCount: disputeData.evidenceCount || 1,
+      evidenceCount: disputeData.evidenceImages?.length || disputeData.evidenceCount || 1,
+      evidenceImages: disputeData.evidenceImages || (disputeData.evidenceImage ? [disputeData.evidenceImage] : []),
       status: 'Pending Admin Review',
       adminResolution: 'Our community moderation team has received your evidence and opened an inquiry.'
     };
@@ -213,7 +249,12 @@ export function ExchangeProvider({ children }) {
 
     // If related to exchange, mark as disputed
     if (disputeData.exchangeId) {
-      setExchanges(prev => prev.map(e => e.id === disputeData.exchangeId ? { ...e, status: 'Disputed', disputeFiled: true } : e));
+      setExchanges(prev => prev.map(e => e.id === disputeData.exchangeId ? { 
+        ...e, 
+        status: 'Disputed', 
+        disputeFiled: true,
+        disputeDetails: newDispute 
+      } : e));
     }
     return newDispute;
   };

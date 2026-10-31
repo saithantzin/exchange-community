@@ -119,6 +119,7 @@ export default function Footer() {
             <Link to="/how-it-works" className="footer-link">How It Works & Safety</Link>
             <Link to="/login" className="footer-link">Member Sign In</Link>
             <Link to="/register" className="footer-link">Join Community</Link>
+            <Link to="/admin/login" className="footer-link">Admin Portal</Link>
           </div>
 
           {/* Col 4: Community & Safety */}

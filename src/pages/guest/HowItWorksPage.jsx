@@ -23,9 +23,9 @@ export default function HowItWorksPage() {
     },
     {
       num: '04',
-      title: 'Safe In-Person Handover',
+      title: 'Handover & Intercity Dispatch',
       icon: 'bi-geo-alt-fill',
-      desc: 'Meet your exchange partner at a safe, public spot in your city. Inspect items directly in person and mark the exchange completed with one simple click.'
+      desc: 'Meet safely in person for same-city swaps. For other cities, connect via social channels (Facebook, Viber, Telegram) to coordinate courier dispatch & waybill tracking.'
     }
   ];
 
@@ -138,11 +138,15 @@ export default function HowItWorksPage() {
 
                 <ul className="list-unstyled d-flex flex-column gap-2.5 text-muted small mb-0" style={{ lineHeight: 1.65 }}>
                   <li className="d-flex align-items-start gap-2">
-                    <i className="bi bi-check-circle-fill text-primary mt-0.5"></i>
-                    <span><strong>Registered Courier Express:</strong> Dispatch via verified carriers (Royal Express, Elite Cargo, Aung Express) and record waybill tracking.</span>
+                    <i className="bi bi-chat-heart-fill text-primary mt-0.5"></i>
+                    <span><strong>Direct Social Account Coordination:</strong> Connect directly via Facebook, Viber, or Telegram to coordinate delivery preferences and exchange parcel packing videos.</span>
                   </li>
                   <li className="d-flex align-items-start gap-2">
-                    <i className="bi bi-check-circle-fill text-primary mt-0.5"></i>
+                    <i className="bi bi-truck text-primary mt-0.5"></i>
+                    <span><strong>Registered Courier Express:</strong> Dispatch via verified carriers (Royal Express, Elite Cargo, Aung Express) and record waybill tracking & receipt slip.</span>
+                  </li>
+                  <li className="d-flex align-items-start gap-2">
+                    <i className="bi bi-shield-check text-primary mt-0.5"></i>
                     <span><strong>Two-Sided Confirmation:</strong> Member A and Member B each receive their parcel and independently inspect the items.</span>
                   </li>
                   <li className="d-flex align-items-start gap-2">
@@ -151,6 +155,152 @@ export default function HowItWorksPage() {
                   </li>
                 </ul>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Dedicated Intercity Social Contact & Shipping Instructions Guide */}
+        <div className="bg-white p-4 p-md-5 rounded-3 border shadow-sm mb-5" style={{ borderColor: 'var(--border-light)' }}>
+          <div className="text-center mb-5" style={{ maxWidth: '760px', margin: '0 auto' }}>
+            <span className="section-pre-title text-primary fw-bold">Intercity Communication Protocol</span>
+            <h2 className="font-serif fw-bold mb-3">How to Connect with Partners in Other Cities</h2>
+            <p className="text-muted" style={{ fontSize: '0.96rem', lineHeight: 1.75 }}>
+              Trading between Yangon, Mandalay, Naypyidaw, Mawlamyine, or Taunggyi? Follow our verified social coordination steps using Facebook, Viber, or Telegram for a seamless, trustworthy swap.
+            </p>
+          </div>
+
+          {/* Social Channels 3-Card Row */}
+          <div className="row g-4 mb-5">
+            {/* Viber */}
+            <div className="col-12 col-md-4">
+              <div
+                className="p-4 rounded-3 h-100 border text-center d-flex flex-column"
+                style={{ backgroundColor: '#FAF6FE', borderColor: '#E5D6F9' }}
+              >
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center text-white mx-auto mb-3 shadow-xs"
+                  style={{ width: '56px', height: '56px', backgroundColor: '#7360F2', fontSize: '1.4rem' }}
+                >
+                  <i className="bi bi-telephone-fill"></i>
+                </div>
+                <h5 className="font-serif fw-bold text-dark mb-1">Viber Messenger</h5>
+                <span className="badge mx-auto mb-3 px-2.5 py-1" style={{ backgroundColor: '#EDE5FC', color: '#5B41C7', fontSize: '0.74rem' }}>
+                  Best for Live Coordination
+                </span>
+                <p className="text-muted small mb-0" style={{ lineHeight: 1.7 }}>
+                  Use Viber to send direct messages, place quick verification voice calls, and share short 10-second daylight videos of the item functioning before packaging.
+                </p>
+              </div>
+            </div>
+
+            {/* Telegram */}
+            <div className="col-12 col-md-4">
+              <div
+                className="p-4 rounded-3 h-100 border text-center d-flex flex-column"
+                style={{ backgroundColor: '#F0F8FE', borderColor: '#CDE5FC' }}
+              >
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center text-white mx-auto mb-3 shadow-xs"
+                  style={{ width: '56px', height: '56px', backgroundColor: '#229ED9', fontSize: '1.4rem' }}
+                >
+                  <i className="bi bi-telegram"></i>
+                </div>
+                <h5 className="font-serif fw-bold text-dark mb-1">Telegram Handle</h5>
+                <span className="badge mx-auto mb-3 px-2.5 py-1" style={{ backgroundColor: '#E1F1FD', color: '#106BA3', fontSize: '0.74rem' }}>
+                  Best for HD Photos & Receipts
+                </span>
+                <p className="text-muted small mb-0" style={{ lineHeight: 1.7 }}>
+                  Use Telegram to send uncompressed high-resolution photos of parcel bubble-wrap cushioning, outer box seals, and crystal-clear courier waybill slips.
+                </p>
+              </div>
+            </div>
+
+            {/* Facebook / Messenger */}
+            <div className="col-12 col-md-4">
+              <div
+                className="p-4 rounded-3 h-100 border text-center d-flex flex-column"
+                style={{ backgroundColor: '#F3F6FD', borderColor: '#CFDCF9' }}
+              >
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center text-white mx-auto mb-3 shadow-xs"
+                  style={{ width: '56px', height: '56px', backgroundColor: '#1877F2', fontSize: '1.4rem' }}
+                >
+                  <i className="bi bi-facebook"></i>
+                </div>
+                <h5 className="font-serif fw-bold text-dark mb-1">Facebook Profile</h5>
+                <span className="badge mx-auto mb-3 px-2.5 py-1" style={{ backgroundColor: '#E3ECFD', color: '#0F56B3', fontSize: '0.74rem' }}>
+                  Best for Trust Verification
+                </span>
+                <p className="text-muted small mb-0" style={{ lineHeight: 1.7 }}>
+                  Inspect each other’s public profile, verify mutual community connections, and send direct Messenger confirmations for extra peace of mind.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step-by-Step Intercity Handover Guide */}
+          <div className="p-4 p-md-4 rounded-3 border" style={{ backgroundColor: '#FAF8F5', borderColor: 'var(--border-medium)' }}>
+            <h5 className="font-serif fw-bold text-dark mb-3 d-flex align-items-center gap-2">
+              <i className="bi bi-signpost-2-fill text-brown" style={{ color: 'var(--primary-brown)' }}></i>
+              4-Step Intercity Contact & Shipping Instruction
+            </h5>
+
+            <div className="row g-3">
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="bg-white p-3 rounded-3 border h-100 shadow-2xs">
+                  <div className="fw-bold text-dark mb-1 small d-flex align-items-center gap-1.5">
+                    <span className="badge bg-secondary-subtle text-dark">Step 1</span>
+                    <span>Accept & Reveal Profile</span>
+                  </div>
+                  <p className="text-muted small mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    Once both sides agree on the swap, click <strong>"View Member Profile"</strong> to unlock their verified phone, Viber number, Telegram username, and Facebook profile.
+                  </p>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="bg-white p-3 rounded-3 border h-100 shadow-2xs">
+                  <div className="fw-bold text-dark mb-1 small d-flex align-items-center gap-1.5">
+                    <span className="badge bg-secondary-subtle text-dark">Step 2</span>
+                    <span>Message & Share Video</span>
+                  </div>
+                  <p className="text-muted small mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    Connect on Viber, Telegram, or Facebook Messenger. Send a 10-second video of the item powered on, plus photos of careful bubble wrap & box packaging.
+                  </p>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="bg-white p-3 rounded-3 border h-100 shadow-2xs">
+                  <div className="fw-bold text-dark mb-1 small d-flex align-items-center gap-1.5">
+                    <span className="badge bg-secondary-subtle text-dark">Step 3</span>
+                    <span>Dispatch & Waybill Entry</span>
+                  </div>
+                  <p className="text-muted small mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    Drop parcels off at <strong>Royal Express</strong>, <strong>Elite Cargo</strong>, or <strong>Aung Express</strong>. Take a photo of the receipt and enter the tracking number into ReCirculate.
+                  </p>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="bg-white p-3 rounded-3 border h-100 shadow-2xs">
+                  <div className="fw-bold text-dark mb-1 small d-flex align-items-center gap-1.5">
+                    <span className="badge bg-secondary-subtle text-dark">Step 4</span>
+                    <span>Inspect & Dual Confirm</span>
+                  </div>
+                  <p className="text-muted small mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    Receive and unbox your parcel. Inspect the item condition. Once both Member A and Member B tap <strong>"Confirm Receipt"</strong>, the swap is officially Completed!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Safety Notice Note */}
+            <div className="mt-3.5 pt-3 border-top d-flex align-items-start gap-2 text-muted small" style={{ fontSize: '0.82rem' }}>
+              <i className="bi bi-shield-exclamation text-warning-emphasis fs-5 flex-shrink-0"></i>
+              <span>
+                <strong>Community Safety Rule:</strong> ReCirculate is 100% money-free. Never send advance money transfers (KPay, WavePay) to trade partners. Only pay standard counter cargo fees directly to the courier office when dropping off or picking up parcels.
+              </span>
             </div>
           </div>
         </div>

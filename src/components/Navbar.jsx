@@ -203,10 +203,19 @@ export default function Navbar() {
                     <Link
                       to="/profile"
                       onClick={() => setUserDropdownOpen(false)}
-                      className="dropdown-item py-2 px-3 rounded d-flex align-items-center gap-2 mb-2"
+                      className="dropdown-item py-2 px-3 rounded d-flex align-items-center gap-2 mb-1"
                       style={{ fontSize: '0.88rem' }}
                     >
                       <i className="bi bi-person-gear text-muted"></i> Profile &amp; Settings
+                    </Link>
+
+                    <Link
+                      to="/admin/dashboard"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="dropdown-item py-2 px-3 rounded d-flex align-items-center gap-2 mb-2"
+                      style={{ fontSize: '0.88rem' }}
+                    >
+                      <i className="bi bi-shield-lock text-muted"></i> Admin Console
                     </Link>
 
                     <div className="dropdown-divider my-2"></div>

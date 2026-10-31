@@ -91,17 +91,21 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, mobileOpen, 
                   to={item.path}
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) =>
-                    `flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+                    `flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group !no-underline ${
                       isActive
-                        ? 'bg-[#5C4033] text-white shadow-xs'
-                        : 'text-[#DDD1BF]/80 hover:bg-[#3d291e] hover:text-white'
+                        ? 'bg-[#5C4033] !text-white shadow-xs'
+                        : '!text-white hover:bg-[#3d291e] hover:!text-white'
                     } ${isCollapsed && !mobileOpen ? 'justify-center px-0' : ''}`
                   }
+                  style={({ isActive }) => ({
+                    textDecoration: 'none',
+                    color: '#ffffff'
+                  })}
                   title={isCollapsed && !mobileOpen ? item.name : undefined}
                 >
-                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-105" />
+                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-105 !text-white" />
                   {(!isCollapsed || mobileOpen) && (
-                    <span className="truncate">{item.name}</span>
+                    <span className="truncate !text-white">{item.name}</span>
                   )}
                 </NavLink>
               );
@@ -113,13 +117,17 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, mobileOpen, 
         <div className="p-3 border-t border-[#3d291e] space-y-1">
           <NavLink
             to="/"
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-[#DDD1BF]/70 hover:text-white hover:bg-[#3d291e] transition-colors ${
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium !no-underline transition-colors ${
               isCollapsed && !mobileOpen ? 'justify-center px-0' : ''
             }`}
+            style={{
+              textDecoration: 'none',
+              color: '#ffffff'
+            }}
             title={isCollapsed && !mobileOpen ? 'Back to User Portal' : undefined}
           >
-            <ArrowLeft className="w-4 h-4 shrink-0" />
-            {(!isCollapsed || mobileOpen) && <span>Back to Community</span>}
+            <ArrowLeft className="w-4 h-4 shrink-0 !text-white" />
+            {(!isCollapsed || mobileOpen) && <span className="!text-white">Back to Community</span>}
           </NavLink>
 
           <button

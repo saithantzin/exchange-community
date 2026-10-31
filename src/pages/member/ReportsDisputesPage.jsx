@@ -13,6 +13,8 @@ export default function ReportsDisputesPage() {
   const [category, setCategory] = useState('Misleading Item Condition');
   const [reason, setReason] = useState('');
   const [evidenceCount, setEvidenceCount] = useState(1);
+  const [evidenceImage, setEvidenceImage] = useState('');
+  const [previewImage, setPreviewImage] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
   const handleSubmit = (e) => {
@@ -27,13 +29,15 @@ export default function ReportsDisputesPage() {
       reportedUser: reportedUser || 'Unknown Member',
       category,
       reason,
-      evidenceCount
+      evidenceCount: evidenceImage ? 1 : 0,
+      evidenceImages: evidenceImage ? [evidenceImage] : []
     });
 
     setShowFileModal(false);
     setItemTitle('');
     setReportedUser('');
     setReason('');
+    setEvidenceImage('');
     setToastMessage('Report filed successfully. Case assigned to platform moderation queue.');
     setTimeout(() => setToastMessage(null), 4500);
   };
@@ -120,6 +124,28 @@ export default function ReportsDisputesPage() {
                     <h6 className="fw-bold text-dark mb-2">{d.reportedItemTitle}</h6>
                     <span className="text-muted small d-block">Against: <strong>{d.reportedUser}</strong></span>
                     <span className="badge bg-secondary-subtle text-secondary mt-1">{d.category}</span>
+
+                    {/* Photo Evidence Thumbnail if present */}
+                    {d.evidenceImages && d.evidenceImages.length > 0 && (
+                      <div className="mt-3 pt-2 border-top">
+                        <span className="text-muted small d-block mb-1.5 fw-semibold">
+                          <i className="bi bi-camera-fill me-1 text-danger"></i> Attached Photo Evidence:
+                        </span>
+                        <div className="d-flex gap-2">
+                          {d.evidenceImages.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={img}
+                              alt="Dispute Evidence"
+                              className="rounded border shadow-2xs cursor-pointer hover-opacity"
+                              style={{ width: '68px', height: '68px', objectFit: 'cover', cursor: 'pointer' }}
+                              onClick={() => setPreviewImage(img)}
+                              title="Click to enlarge"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="col-12 col-md-6">
@@ -203,15 +229,56 @@ export default function ReportsDisputesPage() {
                   </div>
 
                   <div className="mb-2">
-                    <label className="form-label small fw-semibold">Supporting Photo Evidence Count</label>
+                    <label className="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                      <span>Photographic Evidence <span className="text-muted fw-normal">(Optional)</span></span>
+                      {evidenceImage && (
+                        <span className="badge bg-success-subtle text-success">1 Photo Attached</span>
+                      )}
+                    </label>
                     <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      className="form-control"
-                      value={evidenceCount}
-                      onChange={(e) => setEvidenceCount(e.target.value)}
+                      type="file"
+                      accept="image/*"
+                      className="form-control form-control-sm"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setEvidenceImage(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
                     />
+                    <small className="text-muted d-block mt-1" style={{ fontSize: '0.74rem' }}>
+                      Upload clear photos showing scratches, tears, barcode mismatch, or package condition.
+                    </small>
+
+                    {evidenceImage ? (
+                      <div className="mt-2 p-2 bg-light rounded border position-relative d-inline-block">
+                        <img
+                          src={evidenceImage}
+                          alt="Evidence Preview"
+                          className="rounded"
+                          style={{ maxHeight: '110px', maxWidth: '100%', objectFit: 'contain' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEvidenceImage('')}
+                          className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 py-0 px-1.5"
+                          title="Remove photo"
+                        >
+                          <i className="bi bi-x"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceImage('https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&q=80')}
+                        className="btn btn-sm btn-link p-0 text-muted mt-1.5 text-decoration-none d-inline-block"
+                        style={{ fontSize: '0.78rem' }}
+                      >
+                        <i className="bi bi-image me-1"></i> + Attach sample proof photo
+                      </button>
+                    )}
                   </div>
 
                 </div>
@@ -225,6 +292,35 @@ export default function ReportsDisputesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Preview Modal */}
+      {previewImage && (
+        <div
+          className="modal show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(20, 15, 10, 0.85)', backdropFilter: 'blur(5px)', zIndex: 1100 }}
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content bg-transparent border-0 text-center position-relative">
+              <button
+                type="button"
+                className="btn btn-light position-absolute top-0 end-0 m-3 rounded-circle shadow"
+                onClick={() => setPreviewImage(null)}
+                style={{ width: '38px', height: '38px' }}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+              <img
+                src={previewImage}
+                alt="Enlarged Evidence"
+                className="img-fluid rounded-3 shadow-lg mx-auto"
+                style={{ maxHeight: '80vh', objectFit: 'contain' }}
+              />
             </div>
           </div>
         </div>

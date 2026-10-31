@@ -250,3 +250,342 @@ export const ADMIN_REGISTRATION_DATA = [
   { month: 'Sep', members: 1150 },
   { month: 'Oct', members: 1420 }
 ];
+
+export const ADMIN_ITEMS = [
+  {
+    id: 1,
+    title: 'Minimalist Teak Wood Coffee Table',
+    category: 'Furniture',
+    condition: 'Like New',
+    status: 'Available',
+    city: 'Mandalay (Chanayethazan)',
+    region: 'Mandalay Region',
+    owner: { id: 1, name: 'Thant Zin', email: 'thantzin@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=400&q=80',
+    description: 'Custom handcrafted solid teak wood coffee table with natural matte wax finish. No scratches.',
+    createdDate: '2026-10-01',
+    views: 142,
+    reportedCount: 0
+  },
+  {
+    id: 2,
+    title: 'Sony WH-1000XM4 Noise Canceling Headphones',
+    category: 'Electronics',
+    condition: 'Like New',
+    status: 'In Exchange',
+    city: 'Yangon (Kamayut)',
+    region: 'Yangon Region',
+    owner: { id: 3, name: 'Kyaw Zin Htet', email: 'kyawzin@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
+    description: 'Black edition with original hard case, audio cable, and USB-C cord. Battery lasts 28+ hours.',
+    createdDate: '2026-10-04',
+    views: 310,
+    reportedCount: 0
+  },
+  {
+    id: 3,
+    title: 'Logitech MX Master 3S Wireless Mouse',
+    category: 'Electronics',
+    condition: 'Good',
+    status: 'In Exchange',
+    city: 'Mandalay (Chanayethazan)',
+    region: 'Mandalay Region',
+    owner: { id: 1, name: 'Thant Zin', email: 'thantzin@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80',
+    description: 'Ergonomic performance mouse. Quiet click version. Includes Bolt USB receiver and USB cable.',
+    createdDate: '2026-10-05',
+    views: 184,
+    reportedCount: 0
+  },
+  {
+    id: 4,
+    title: 'Nordic Ceramic Tea & Coffee Set (6 Cups)',
+    category: 'Household Items',
+    condition: 'New',
+    status: 'Available',
+    city: 'Pyin Oo Lwin',
+    region: 'Mandalay Region',
+    owner: { id: 2, name: 'Thiri Myint', email: 'thiri@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&q=80',
+    description: 'Handmade matte earthenware tea set with wooden saucers and bamboo serving tray. Unused in box.',
+    createdDate: '2026-10-06',
+    views: 220,
+    reportedCount: 0
+  },
+  {
+    id: 5,
+    title: 'Design & Architecture Hardcover Book Collection (5 Vols)',
+    category: 'Books',
+    condition: 'Good',
+    status: 'Available',
+    city: 'Yangon (Bahan)',
+    region: 'Yangon Region',
+    owner: { id: 3, name: 'Kyaw Zin Htet', email: 'kyawzin@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&q=80',
+    description: 'Monographs on Scandinavian modernism, Bauhaus principles, and sustainable vernacular architecture.',
+    createdDate: '2026-10-07',
+    views: 95,
+    reportedCount: 0
+  },
+  {
+    id: 6,
+    title: 'Ergonomic Mesh Swivel Task Chair',
+    category: 'Furniture',
+    condition: 'Fair',
+    status: 'Available',
+    city: 'Taunggyi',
+    region: 'Shan State',
+    owner: { id: 4, name: 'Nandar Win', email: 'nandar@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1580481077195-c3a824498322?w=400&q=80',
+    description: 'Breathable backrest with adjustable lumbar support and roller wheels. Slight wear on armrests.',
+    createdDate: '2026-10-08',
+    views: 130,
+    reportedCount: 0
+  },
+  {
+    id: 7,
+    title: 'Mechanical Keyboard (Keychron K2 Wireless)',
+    category: 'Electronics',
+    condition: 'Like New',
+    status: 'Completed',
+    city: 'Monywa',
+    region: 'Sagaing Region',
+    owner: { id: 5, name: 'Aung Thu', email: 'aungthu@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400&q=80',
+    description: 'Gateron Brown switches with RGB backlighting. Bluetooth 5.1 and Type-C cable.',
+    createdDate: '2026-09-20',
+    views: 412,
+    reportedCount: 0
+  },
+  {
+    id: 8,
+    title: 'Unbranded Fake Smartwatch Listing',
+    category: 'Electronics',
+    condition: 'Poor',
+    status: 'Deactivated',
+    city: 'Pathein',
+    region: 'Ayeyarwady Region',
+    owner: { id: 7, name: 'Zaw Min Oo', email: 'zawmin@exchange.mm' },
+    image: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&q=80',
+    description: 'Counterfeit replica listed without proper disclosure.',
+    createdDate: '2026-09-28',
+    views: 35,
+    reportedCount: 3,
+    moderationNote: 'Removed by Admin: Inauthentic hardware listing without clear brand disclosure.'
+  }
+];
+
+export const ADMIN_EXCHANGES = [
+  {
+    id: 'EXC-8801',
+    status: 'Shipping',
+    isIntercity: true,
+    handoverMethod: 'Intercity Courier Delivery',
+    initiatedDate: '2026-10-08',
+    partyA: {
+      memberId: 1,
+      name: 'Thant Zin',
+      email: 'thantzin@exchange.mm',
+      city: 'Mandalay (Chanayethazan)',
+      itemTitle: 'Logitech MX Master 3S Wireless Mouse',
+      itemImage: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80',
+      courier: 'Royal Express Courier',
+      trackingNumber: 'RX-8921-MY',
+      dispatched: true,
+      confirmedReceipt: false,
+      receiptDate: null
+    },
+    partyB: {
+      memberId: 3,
+      name: 'Kyaw Zin Htet',
+      email: 'kyawzin@exchange.mm',
+      city: 'Yangon (Kamayut)',
+      itemTitle: 'Sony WH-1000XM4 Noise Canceling Headphones',
+      itemImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
+      courier: 'Elite Cargo Express',
+      trackingNumber: 'EC-7721-YM',
+      dispatched: true,
+      confirmedReceipt: true,
+      receiptDate: '2026-10-14 16:30'
+    },
+    courierTracking: {
+      route: 'Mandalay ⇄ Yangon Express Transit',
+      currentLocation: 'Yangon Central Cargo Sorting Hub',
+      eta: 'Arriving Tomorrow'
+    },
+    isCompleted: false,
+    disputeFiled: false,
+    history: [
+      { date: '2026-10-08 10:15', event: 'Exchange proposal accepted by both members.' },
+      { date: '2026-10-09 14:00', event: 'Party A uploaded Royal Express dispatch receipt (RX-8921-MY).' },
+      { date: '2026-10-10 11:30', event: 'Party B uploaded Elite Cargo dispatch receipt (EC-7721-YM).' },
+      { date: '2026-10-14 16:30', event: 'Party B confirmed parcel receipt in Yangon. Awaiting Party A confirmation.' }
+    ]
+  },
+  {
+    id: 'EXC-8802',
+    status: 'Accepted',
+    isIntercity: false,
+    handoverMethod: 'In-Person Meetup',
+    initiatedDate: '2026-10-10',
+    partyA: {
+      memberId: 1,
+      name: 'Thant Zin',
+      email: 'thantzin@exchange.mm',
+      city: 'Mandalay',
+      itemTitle: 'Solid Teak Study Desk with Drawers',
+      itemImage: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&q=80',
+      dispatched: false,
+      confirmedReceipt: false
+    },
+    partyB: {
+      memberId: 2,
+      name: 'Thiri Myint',
+      email: 'thiri@exchange.mm',
+      city: 'Mandalay',
+      itemTitle: 'Minimalist Teak Wood Coffee Table',
+      itemImage: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=400&q=80',
+      dispatched: false,
+      confirmedReceipt: false
+    },
+    meetupLocation: '73rd St Coffee Circle, Mandalay',
+    isCompleted: false,
+    disputeFiled: false,
+    history: [
+      { date: '2026-10-10 14:20', event: 'Meetup exchange scheduled for Sunday at 73rd St Coffee Circle.' }
+    ]
+  },
+  {
+    id: 'EXC-7704',
+    status: 'Completed',
+    isIntercity: false,
+    handoverMethod: 'In-Person Meetup',
+    initiatedDate: '2026-09-24',
+    completedDate: '2026-09-27',
+    partyA: {
+      memberId: 1,
+      name: 'Thant Zin',
+      email: 'thantzin@exchange.mm',
+      city: 'Mandalay',
+      itemTitle: 'Vintage Film Camera (Olympus OM-1)',
+      itemImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80',
+      confirmedReceipt: true,
+      receiptDate: '2026-09-27 16:45'
+    },
+    partyB: {
+      memberId: 5,
+      name: 'Aung Thu',
+      email: 'aungthu@exchange.mm',
+      city: 'Mandalay',
+      itemTitle: 'Mechanical Keyboard (Keychron K2)',
+      itemImage: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400&q=80',
+      confirmedReceipt: true,
+      receiptDate: '2026-09-27 16:40'
+    },
+    meetupLocation: 'Mingalar Mandalay Plaza',
+    isCompleted: true,
+    disputeFiled: false,
+    history: [
+      { date: '2026-09-24 11:00', event: 'Exchange proposal submitted and accepted.' },
+      { date: '2026-09-27 16:40', event: 'In-person inspection and handshake completed.' },
+      { date: '2026-09-27 16:45', event: 'Both parties marked received. Status marked Completed.' }
+    ]
+  },
+  {
+    id: 'EXC-9014',
+    status: 'Disputed',
+    isIntercity: true,
+    handoverMethod: 'Intercity Courier Delivery',
+    initiatedDate: '2026-10-02',
+    partyA: {
+      memberId: 7,
+      name: 'Zaw Min Oo',
+      email: 'zawmin@exchange.mm',
+      city: 'Pathein',
+      itemTitle: 'Unbranded Fake Smartwatch Listing',
+      itemImage: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&q=80',
+      courier: 'Delta Speed Express',
+      trackingNumber: 'DS-4410-PY',
+      dispatched: true,
+      confirmedReceipt: false
+    },
+    partyB: {
+      memberId: 6,
+      name: 'May Thu Lin',
+      email: 'maythu@exchange.mm',
+      city: 'Mawlamyine',
+      itemTitle: 'Ceramic Table Lamp & Linen Shade',
+      itemImage: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&q=80',
+      courier: 'Mon Express Line',
+      trackingNumber: 'ME-9912-MM',
+      dispatched: true,
+      confirmedReceipt: true
+    },
+    isCompleted: false,
+    disputeFiled: true,
+    history: [
+      { date: '2026-10-02 09:00', event: 'Exchange started.' },
+      { date: '2026-10-12 18:20', event: 'Party B filed dispute: Received item differs heavily from listing photo and is defective.' }
+    ]
+  }
+];
+
+export const ADMIN_REPORTS = [
+  {
+    id: 'REP-401',
+    type: 'Misleading Description',
+    status: 'Under Review',
+    exchangeId: 'EXC-9014',
+    reportedItemId: 8,
+    reportedItemTitle: 'Unbranded Fake Smartwatch Listing',
+    reporter: { id: 6, name: 'May Thu Lin', email: 'maythu@exchange.mm' },
+    reportedUser: { id: 7, name: 'Zaw Min Oo', email: 'zawmin@exchange.mm' },
+    date: '2026-10-12 18:20',
+    description: 'The smartwatch received does not match the photos. The screen is scratched and it does not charge. The owner is unresponsive.',
+    evidenceImages: [
+      'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&q=80'
+    ],
+    adminNotes: 'Checked courier tracking: Delivery arrived on Oct 11. Photos confirm visible scratches. Sender has been warned once before.',
+    actionHistory: [
+      { date: '2026-10-13 10:00', action: 'Report opened by system and assigned to moderator.', by: 'Auto-Dispatcher' },
+      { date: '2026-10-14 11:20', action: 'Listing deactivated and member account placed on suspension pending return confirmation.', by: 'Kyaw Swar Hein (Admin)' }
+    ]
+  },
+  {
+    id: 'REP-402',
+    type: 'Missing Parcel / Delayed Dispatch',
+    status: 'Open',
+    exchangeId: 'EXC-8801',
+    reportedItemId: 3,
+    reportedItemTitle: 'Logitech MX Master 3S Wireless Mouse',
+    reporter: { id: 3, name: 'Kyaw Zin Htet', email: 'kyawzin@exchange.mm' },
+    reportedUser: { id: 1, name: 'Thant Zin', email: 'thantzin@exchange.mm' },
+    date: '2026-10-15 08:30',
+    description: 'Courier tracking shows arrived in Yangon terminal 2 days ago but haven’t received delivery call yet.',
+    evidenceImages: [],
+    adminNotes: 'Contacted Royal Express dispatch manager in Kamayut hub. Delivery rescheduled for this afternoon.',
+    actionHistory: [
+      { date: '2026-10-15 08:35', action: 'Report filed by Kyaw Zin Htet.', by: 'Member' }
+    ]
+  },
+  {
+    id: 'REP-399',
+    type: 'Damaged Item',
+    status: 'Resolved',
+    exchangeId: 'EXC-7610',
+    reportedItemId: 9,
+    reportedItemTitle: 'Ceramic Coffee Dripper & Glass Server',
+    reporter: { id: 4, name: 'Nandar Win', email: 'nandar@exchange.mm' },
+    reportedUser: { id: 2, name: 'Thiri Myint', email: 'thiri@exchange.mm' },
+    date: '2026-09-18 14:15',
+    description: 'Glass server cracked during highway transit due to inadequate bubble wrapping.',
+    evidenceImages: [
+      'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&q=80'
+    ],
+    adminNotes: 'Both parties agreed amicably: sender dispatched replacement glass server. Replacement received intact on Sep 22.',
+    actionHistory: [
+      { date: '2026-09-18 15:00', action: 'Investigation opened.', by: 'Admin' },
+      { date: '2026-09-23 11:00', action: 'Resolution confirmed by both parties. Case closed.', by: 'Admin' }
+    ]
+  }
+];

@@ -426,14 +426,80 @@ export const CURRENT_USER_ITEMS = [
 // Initial Exchange Requests (Incoming & Outgoing)
 export const INITIAL_REQUESTS = [
   {
+    id: 'REQ-204',
+    type: 'incoming', // Requester from Yangon proposing intercity courier exchange
+    isIntercity: true,
+    requester: {
+      id: 3,
+      name: 'Kyaw Zin Htet',
+      city: 'Yangon (Kamayut)',
+      rating: 5.0,
+      exchanges: 22,
+      joined: 'Joined Aug 2023',
+      phone: '09450987654',
+      viber: '09450987654',
+      telegram: '@kyawzin_htet',
+      facebook: 'https://facebook.com/kyawzin.htet',
+      bio: 'Software engineer cycling pre-loved tech gadgets, audio gear, and books. Always packages parcels with bubble wrap for express courier.',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&q=80',
+      items: [
+        {
+          id: 2,
+          title: 'Sony WH-1000XM4 Noise Canceling Headphones',
+          category: 'Electronics',
+          condition: 'Like New',
+          image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80'
+        },
+        {
+          id: 5,
+          title: 'Design & Architecture Hardcover Book Collection (5 Vols)',
+          category: 'Books',
+          condition: 'Good',
+          image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&q=80'
+        }
+      ]
+    },
+    requestedItem: {
+      id: 102,
+      title: 'Logitech MX Master 3S Wireless Mouse',
+      city: 'Mandalay (MDY)',
+      image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80'
+    },
+    offeredItem: {
+      id: 2,
+      title: 'Sony WH-1000XM4 Noise Canceling Headphones',
+      city: 'Yangon (YGN)',
+      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
+      condition: 'Like New'
+    },
+    handoverMethod: 'Intercity Courier Delivery (Yangon ⇄ Mandalay)',
+    message: 'Hello Thant Zin! I am in Yangon and would love to exchange my Sony WH-1000XM4 headphones for your Logitech MX Master 3S in Mandalay. We can ship via Royal Express or Elite Cargo and confirm receipt independently.',
+    date: '2026-10-15 14:30',
+    status: 'Pending'
+  },
+  {
     id: 'REQ-201',
     type: 'incoming', // Requester offered an item for Thant Zin's item
+    isIntercity: false,
     requester: {
       id: 2,
       name: 'Thiri Myint',
       city: 'Mandalay (MDY)',
       rating: 4.9,
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&q=80'
+      exchanges: 14,
+      joined: 'Joined Feb 2024',
+      phone: '09791112233',
+      bio: 'Gardener and botanist interested in home decor, solid woodcraft, and organic planters living in Chanayethazan, Mandalay.',
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&q=80',
+      items: [
+        {
+          id: 1,
+          title: 'Minimalist Teak Wood Coffee Table',
+          category: 'Furniture',
+          condition: 'Like New',
+          image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=400&q=80'
+        }
+      ]
     },
     requestedItem: {
       id: 101,
@@ -484,12 +550,26 @@ export const INITIAL_REQUESTS = [
   {
     id: 'REQ-203',
     type: 'incoming',
+    isIntercity: false,
     requester: {
       id: 6,
       name: 'May Thu Lin',
       city: 'Yangon (YGN)',
       rating: 5.0,
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&q=80'
+      exchanges: 31,
+      joined: 'Joined Jan 2023',
+      phone: '09420001122',
+      bio: 'Interior stylist offering vintage prints and ceramicware.',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&q=80',
+      items: [
+        {
+          id: 5,
+          title: 'Design & Architecture Hardcover Book Collection (5 Vols)',
+          category: 'Books',
+          condition: 'Good',
+          image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&q=80'
+        }
+      ]
     },
     requestedItem: {
       id: 103,
@@ -542,6 +622,10 @@ export const INITIAL_EXCHANGES = [
     partyB: {
       name: 'Kyaw Zin Htet',
       city: 'Yangon',
+      phone: '09450987654',
+      viber: '09450987654',
+      telegram: '@kyawzin_htet',
+      facebook: 'https://facebook.com/kyawzin.htet',
       courier: 'Elite Cargo Express',
       trackingNumber: 'EC-7721-YM',
       dispatched: true,

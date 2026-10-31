@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -25,7 +25,46 @@ import ReportsDisputesPage from './pages/member/ReportsDisputesPage';
 import ProfileSettingsPage from './pages/member/ProfileSettingsPage';
 import NotificationsPage from './pages/member/NotificationsPage';
 
+// Admin Pages
+import AdminLogin from './pages/admin/AdminLogin';
+import Dashboard from './pages/admin/Dashboard';
+import Members from './pages/admin/Members';
+import Categories from './pages/admin/Categories';
+import Items from './pages/admin/Items';
+import Exchanges from './pages/admin/Exchanges';
+import ExchangeDetails from './pages/admin/ExchangeDetails';
+import ReportsDisputes from './pages/admin/ReportsDisputes';
+import ExchangeHistory from './pages/admin/ExchangeHistory';
+import AdminProfile from './pages/admin/AdminProfile';
+import AdminRouteGuard from './routes/AdminRoutes';
+
 export default function App() {
+  const location = useLocation();
+  const isAdminPath = location.pathname.startsWith('/admin');
+
+  // Dedicated Admin routing subtree without user navbar/footer
+  if (isAdminPath) {
+    return (
+      <Routes>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminRouteGuard />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="members" element={<Members />} />
+          <Route path="categories" element={<Categories />} />
+          <Route path="items" element={<Items />} />
+          <Route path="exchanges" element={<Exchanges />} />
+          <Route path="exchanges/:id" element={<ExchangeDetails />} />
+          <Route path="reports" element={<ReportsDisputes />} />
+          <Route path="history" element={<ExchangeHistory />} />
+          <Route path="profile" element={<AdminProfile />} />
+          <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+        </Route>
+      </Routes>
+    );
+  }
+
+  // Public & Member Platform Routing
   return (
     <div className="min-vh-100 d-flex flex-column">
       {/* Sticky Header Navigation */}

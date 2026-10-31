@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
+import MemberProfileModal from '../../components/MemberProfileModal';
 
 export default function ExchangeDetailsPage() {
   const { id } = useParams();
@@ -21,15 +22,43 @@ export default function ExchangeDetailsPage() {
 
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Partner profile modal state
+  const [showPartnerProfile, setShowPartnerProfile] = useState(false);
+
+  const partnerProfile = {
+    name: exchange.partyB?.name || exchange.itemB?.ownerName || 'Partner',
+    city: exchange.partyB?.city || exchange.itemB?.ownerCity || 'Other City',
+    avatar: exchange.partyB?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&q=80',
+    rating: 5.0,
+    exchanges: 22,
+    joined: 'Joined Aug 2023',
+    phone: '09450987654 (Verified)',
+    bio: 'Verified community trader participating in sustainable item exchanges across Myanmar.',
+    items: [
+      {
+        id: 101,
+        title: exchange.itemB?.title || 'Exchanged Item',
+        image: exchange.itemB?.image,
+        category: 'Electronics',
+        condition: 'Like New'
+      }
+    ]
+  };
+
   // Dispatch tracking modal state for intercity
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [courierName, setCourierName] = useState(exchange.partyA?.courier || 'Royal Express');
   const [trackingNumber, setTrackingNumber] = useState(exchange.partyA?.trackingNumber || '');
+  const [receiptImage, setReceiptImage] = useState(exchange.partyA?.receiptImage || '');
 
   // Dispute modal state
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeCategory, setDisputeCategory] = useState('Misleading Item Condition');
   const [disputeReason, setDisputeReason] = useState('');
+  const [disputeImage, setDisputeImage] = useState('');
+
+  // Image lightbox preview modal
+  const [previewImageModal, setPreviewImageModal] = useState(null);
 
   // Handle direct in-person completion (Same City)
   const handleCompleteInPerson = () => {
@@ -54,10 +83,11 @@ export default function ExchangeDetailsPage() {
     }
     updateCourierDispatch(exchange.id, 'partyA', {
       courier: courierName,
-      trackingNumber
+      trackingNumber,
+      receiptImage: receiptImage || null
     });
     setShowDispatchModal(false);
-    setToastMessage('Courier tracking information updated successfully.');
+    setToastMessage('Courier tracking information & waybill slip updated successfully.');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -72,10 +102,13 @@ export default function ExchangeDetailsPage() {
       itemTitle: exchange.itemB?.title || 'Exchanged Item',
       reportedUser: exchange.itemB?.ownerName || 'Partner',
       category: disputeCategory,
-      reason: disputeReason
+      reason: disputeReason,
+      evidenceImages: disputeImage ? [disputeImage] : []
     });
     setShowDisputeModal(false);
-    setToastMessage('Report submitted. Platform moderators have been notified.');
+    setDisputeReason('');
+    setDisputeImage('');
+    setToastMessage('Report and photo evidence submitted. Platform moderators have been notified.');
     setTimeout(() => setToastMessage(null), 5000);
   };
 
@@ -283,8 +316,35 @@ export default function ExchangeDetailsPage() {
                   <div className="small text-muted mb-1">
                     Courier: <strong>{exchange.partyA?.courier || 'Royal Express'}</strong>
                   </div>
-                  <div className="small text-muted">
+                  <div className="small text-muted mb-1">
                     Waybill Tracking #: <span className="font-monospace text-dark fw-bold">{exchange.partyA?.trackingNumber || 'Pending Entry'}</span>
+                  </div>
+
+                  {exchange.partyA?.receiptImage && (
+                    <div className="mt-2.5 pt-2 border-top">
+                      <span className="text-muted small d-block mb-1" style={{ fontSize: '0.78rem' }}>
+                        <i className="bi bi-receipt me-1"></i> Waybill Slip / Courier Receipt:
+                      </span>
+                      <img
+                        src={exchange.partyA.receiptImage}
+                        alt="Your Waybill Slip"
+                        className="rounded border shadow-xs"
+                        style={{ maxHeight: '65px', maxWidth: '120px', objectFit: 'cover', cursor: 'pointer' }}
+                        onClick={() => setPreviewImageModal(exchange.partyA.receiptImage)}
+                        title="Click to view full receipt"
+                      />
+                    </div>
+                  )}
+
+                  <div className="mt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowDispatchModal(true)}
+                      className="btn btn-sm btn-outline-primary py-1 px-3 d-inline-flex align-items-center gap-1.5"
+                      style={{ fontSize: '0.80rem' }}
+                    >
+                      <i className="bi bi-box-seam"></i> {exchange.partyA?.trackingNumber ? 'Update Courier & Receipt' : 'Enter Courier Tracking & Slip'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -312,8 +372,70 @@ export default function ExchangeDetailsPage() {
                   <div className="small text-muted mb-1">
                     Courier: <strong>{exchange.partyB?.courier || 'Elite Cargo Express'}</strong>
                   </div>
-                  <div className="small text-muted">
+                  <div className="small text-muted mb-1">
                     Waybill Tracking #: <span className="font-monospace text-dark fw-bold">{exchange.partyB?.trackingNumber || 'Pending Entry'}</span>
+                  </div>
+
+                  {/* Partner's Dispatch Receipt Sample */}
+                  <div className="mt-2.5 pt-2 border-top">
+                    <span className="text-muted small d-block mb-1" style={{ fontSize: '0.78rem' }}>
+                      <i className="bi bi-receipt me-1"></i> Partner Dispatch Receipt:
+                    </span>
+                    <img
+                      src={exchange.partyB?.receiptImage || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500&q=80'}
+                      alt="Partner Waybill Slip"
+                      className="rounded border shadow-xs"
+                      style={{ maxHeight: '65px', maxWidth: '120px', objectFit: 'cover', cursor: 'pointer' }}
+                      onClick={() => setPreviewImageModal(exchange.partyB?.receiptImage || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500&q=80')}
+                      title="Click to view full receipt"
+                    />
+                  </div>
+
+                  {/* Direct Social Channels to contact partner */}
+                  <div className="mt-2.5 pt-2 border-top">
+                    <span className="text-muted small d-block mb-1.5" style={{ fontSize: '0.76rem' }}>
+                      <i className="bi bi-chat-heart-fill me-1" style={{ color: '#7360F2' }}></i> Contact Partner (Social Channels):
+                    </span>
+                    <div className="d-flex flex-wrap gap-1.5">
+                      <a
+                        href={`viber://chat?number=${exchange.partyB?.viber || exchange.partyB?.phone || '09450987654'}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm py-0.5 px-2 rounded-pill text-white d-inline-flex align-items-center gap-1 text-decoration-none"
+                        style={{ backgroundColor: '#7360F2', fontSize: '0.74rem' }}
+                        title="Chat or call on Viber"
+                      >
+                        <i className="bi bi-telephone-fill"></i> Viber
+                      </a>
+                      <a
+                        href={`https://t.me/${(exchange.partyB?.telegram || 'kyawzin_htet').replace('@', '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm py-0.5 px-2 rounded-pill text-white d-inline-flex align-items-center gap-1 text-decoration-none"
+                        style={{ backgroundColor: '#229ED9', fontSize: '0.74rem' }}
+                        title="Chat on Telegram"
+                      >
+                        <i className="bi bi-telegram"></i> Telegram
+                      </a>
+                      <a
+                        href={exchange.partyB?.facebook || 'https://facebook.com'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-sm py-0.5 px-2 rounded-pill text-white d-inline-flex align-items-center gap-1 text-decoration-none"
+                        style={{ backgroundColor: '#1877F2', fontSize: '0.74rem' }}
+                        title="View Facebook Profile"
+                      >
+                        <i className="bi bi-facebook"></i> Facebook
+                      </a>
+                      <a
+                        href={`tel:${exchange.partyB?.phone || '09450987654'}`}
+                        className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill d-inline-flex align-items-center gap-1 text-decoration-none"
+                        style={{ fontSize: '0.74rem' }}
+                        title="Direct phone call"
+                      >
+                        <i className="bi bi-phone"></i> Call
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -378,9 +500,19 @@ export default function ExchangeDetailsPage() {
                   <h5 className="font-serif fw-bold text-dark mb-1" style={{ fontSize: '1.2rem' }}>
                     {exchange.itemB?.title}
                   </h5>
-                  <span className="text-muted small" style={{ fontSize: '0.86rem' }}>
-                    From: <strong>{exchange.itemB?.ownerName}</strong> ({exchange.itemB?.ownerCity || 'Other City'})
-                  </span>
+                  <div className="d-flex align-items-center flex-wrap gap-2">
+                    <span className="text-muted small" style={{ fontSize: '0.86rem' }}>
+                      From: <strong>{exchange.itemB?.ownerName}</strong> ({exchange.itemB?.ownerCity || 'Other City'})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPartnerProfile(true)}
+                      className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill d-inline-flex align-items-center gap-1"
+                      style={{ fontSize: '0.76rem' }}
+                    >
+                      <i className="bi bi-person-lines-fill text-primary"></i> View Partner Profile
+                    </button>
+                  </div>
                 </div>
               </div>
               <p className="text-muted mb-0 small" style={{ fontSize: '0.86rem', lineHeight: 1.6 }}>
@@ -410,7 +542,19 @@ export default function ExchangeDetailsPage() {
             {/* Condition 1: Intercity Exchange Action */}
             {isIntercity ? (
               <>
-                <h4 className="font-serif fw-bold text-dark mb-2">Intercity Receipt Confirmation</h4>
+                <h4 className="font-serif fw-bold text-dark mb-2">Intercity Two-Sided Completion</h4>
+                
+                {/* Notice if Partner already confirmed receipt first */}
+                {!exchange.partyA?.confirmedReceipt && exchange.partyB?.confirmedReceipt && (
+                  <div className="alert alert-warning py-2.5 px-3 mx-auto mb-3 text-start d-flex align-items-center gap-2" style={{ maxWidth: '640px', fontSize: '0.86rem' }}>
+                    <i className="bi bi-info-circle-fill text-warning-emphasis fs-5"></i>
+                    <div>
+                      <strong>{exchange.partyB?.name || 'Partner'} has already confirmed receipt of your item!</strong>
+                      <div>Once you inspect the parcel and click Confirm Receipt below, this exchange will be completed immediately.</div>
+                    </div>
+                  </div>
+                )}
+
                 {!exchange.partyA?.confirmedReceipt ? (
                   <>
                     <p className="text-muted mx-auto mb-4" style={{ maxWidth: '580px', fontSize: '0.94rem', lineHeight: 1.75 }}>
@@ -426,12 +570,37 @@ export default function ExchangeDetailsPage() {
                     </button>
                   </>
                 ) : (
-                  <div className="alert alert-info py-3 mx-auto" style={{ maxWidth: '640px' }}>
-                    <i className="bi bi-hourglass-split me-2 fs-5"></i>
-                    <strong>You have verified and confirmed receipt!</strong>
-                    <div className="mt-1 small">
-                      Waiting for {exchange.partyB?.name || exchange.itemB?.ownerName || 'your partner'} to inspect and confirm receipt of your dispatched parcel to finalize this exchange.
+                  <div className="alert alert-info py-3 mx-auto text-start" style={{ maxWidth: '640px' }}>
+                    <div className="d-flex align-items-center gap-2.5 mb-2">
+                      <i className="bi bi-check-circle-fill text-success fs-4"></i>
+                      <div>
+                        <strong className="text-dark">You have verified and confirmed receipt! (1 of 2 Confirmed)</strong>
+                        <div className="small text-muted">
+                          Waiting for {exchange.partyB?.name || exchange.itemB?.ownerName || 'your partner'} to inspect and confirm receipt of your dispatched parcel to finalize this exchange.
+                        </div>
+                      </div>
                     </div>
+
+                    {!exchange.partyB?.confirmedReceipt && (
+                      <div className="mt-3 pt-3 border-top text-center">
+                        <span className="text-muted small d-block mb-2">
+                          Ready to test the entire process to completion?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            confirmReceipt(exchange.id, 'partyB', 'Partner verified parcel arrival in other city.');
+                            setToastMessage('Partner verified and confirmed receipt! Both members confirmed. Exchange is 100% Completed!');
+                            setTimeout(() => setToastMessage(null), 5000);
+                          }}
+                          className="btn btn-sm btn-success px-4 py-2 fw-medium shadow-xs"
+                          style={{ fontSize: '0.86rem' }}
+                        >
+                          <i className="bi bi-patch-check-fill me-1.5"></i>
+                          Simulate Partner ({exchange.partyB?.name || 'Partner'}) Confirming Receipt (Complete Exchange)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -508,6 +677,58 @@ export default function ExchangeDetailsPage() {
                     />
                     <small className="text-muted">Recorded so both members and platform admins can track intercity transport.</small>
                   </div>
+
+                  {/* Courier Receipt / Waybill Slip Upload */}
+                  <div className="mb-2">
+                    <label className="form-label small fw-semibold d-flex align-items-center justify-content-between">
+                      <span><i className="bi bi-camera me-1"></i> Courier Receipt Slip / Waybill Photo</span>
+                      <span className="text-muted fw-normal" style={{ fontSize: '0.72rem' }}>Proof of dispatch</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="form-control form-control-sm"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setReceiptImage(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <small className="text-muted d-block mt-1" style={{ fontSize: '0.74rem' }}>
+                      Photograph the paper waybill slip or dispatch voucher given by the courier office.
+                    </small>
+
+                    {receiptImage ? (
+                      <div className="mt-2.5 p-2 bg-light rounded border position-relative d-inline-block">
+                        <img
+                          src={receiptImage}
+                          alt="Waybill Preview"
+                          className="rounded"
+                          style={{ maxHeight: '110px', maxWidth: '100%', objectFit: 'contain' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setReceiptImage('')}
+                          className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 py-0 px-1.5"
+                          title="Remove photo"
+                        >
+                          <i className="bi bi-x"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReceiptImage('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500&q=80')}
+                        className="btn btn-sm btn-link p-0 text-muted mt-1.5 text-decoration-none d-inline-block"
+                        style={{ fontSize: '0.78rem' }}
+                      >
+                        <i className="bi bi-image me-1"></i> + Insert sample courier receipt slip
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowDispatchModal(false)}>
@@ -561,6 +782,58 @@ export default function ExchangeDetailsPage() {
                       onChange={(e) => setDisputeReason(e.target.value)}
                     ></textarea>
                   </div>
+
+                  {/* Photo Evidence Upload (Optional) */}
+                  <div className="mb-2">
+                    <label className="form-label small fw-semibold d-flex align-items-center justify-content-between">
+                      <span><i className="bi bi-camera me-1"></i> Upload Photo Evidence (Optional)</span>
+                      <span className="badge bg-secondary-subtle text-secondary" style={{ fontSize: '0.70rem' }}>Optional</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="form-control form-control-sm"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setDisputeImage(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <small className="text-muted d-block mt-1" style={{ fontSize: '0.74rem' }}>
+                      Upload photos showing defects, packaging tears, broken seals, or waybill barcode.
+                    </small>
+
+                    {disputeImage ? (
+                      <div className="mt-2.5 p-2 bg-light rounded border position-relative d-inline-block">
+                        <img
+                          src={disputeImage}
+                          alt="Dispute Evidence Preview"
+                          className="rounded"
+                          style={{ maxHeight: '110px', maxWidth: '100%', objectFit: 'contain' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setDisputeImage('')}
+                          className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 py-0 px-1.5"
+                          title="Remove photo"
+                        >
+                          <i className="bi bi-x"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDisputeImage('https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&q=80')}
+                        className="btn btn-sm btn-link p-0 text-muted mt-1.5 text-decoration-none d-inline-block"
+                        style={{ fontSize: '0.78rem' }}
+                      >
+                        <i className="bi bi-image me-1"></i> + Insert sample damage photo
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowDisputeModal(false)}>
@@ -575,6 +848,43 @@ export default function ExchangeDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Lightbox Image Preview Modal */}
+      {previewImageModal && (
+        <div
+          className="modal show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(20, 15, 10, 0.85)', backdropFilter: 'blur(5px)', zIndex: 1100 }}
+          onClick={() => setPreviewImageModal(null)}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content bg-transparent border-0 text-center position-relative">
+              <button
+                type="button"
+                className="btn btn-light position-absolute top-0 end-0 m-3 rounded-circle shadow"
+                onClick={() => setPreviewImageModal(null)}
+                style={{ width: '38px', height: '38px' }}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+              <img
+                src={previewImageModal}
+                alt="Enlarged View"
+                className="img-fluid rounded-3 shadow-lg mx-auto"
+                style={{ maxHeight: '80vh', objectFit: 'contain' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Member Profile Modal */}
+      <MemberProfileModal
+        show={showPartnerProfile}
+        onClose={() => setShowPartnerProfile(false)}
+        member={partnerProfile}
+        isIntercity={isIntercity}
+      />
 
     </div>
   );
