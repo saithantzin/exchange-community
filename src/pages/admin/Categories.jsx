@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FolderTree,
   Plus,
@@ -14,16 +14,42 @@ import {
   Shirt,
   Coffee,
   Armchair,
-  Grid
+  Grid,
+  ShieldCheck
 } from 'lucide-react';
 import DataTable from '../../components/admin/DataTable';
 import StatusBadge from '../../components/admin/StatusBadge';
 import ConfirmModal from '../../components/admin/ConfirmModal';
 import { ADMIN_CATEGORIES } from '../../data/adminMockData';
+import categoryService from '../../services/categoryService';
 
 export default function Categories() {
   const [categories, setCategories] = useState(ADMIN_CATEGORIES);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Fetch dynamic categories from Laravel API on mount
+  useEffect(() => {
+    categoryService.getCategories()
+      .then((res) => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          const dynamicCats = res.data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            depositAmount: Number(c.deposit_amount) || 100000,
+            itemCount: c.items_count || 0,
+            description: c.name + ' items for community swaps',
+            icon: c.icon || 'Grid',
+            status: c.is_active ? 'Active' : 'Inactive'
+          }));
+          setCategories(dynamicCats);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load categories from backend, using fallback:', err?.message);
+      });
+  }, []);
 
   // Add / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +85,7 @@ export default function Categories() {
     setFormData({
       name: '',
       slug: '',
+      depositAmount: 50000,
       description: '',
       icon: 'Grid',
       status: 'Active'
@@ -72,6 +99,7 @@ export default function Categories() {
     setFormData({
       name: cat.name,
       slug: cat.slug || cat.id,
+      depositAmount: cat.depositAmount || 50000,
       description: cat.description || '',
       icon: cat.icon || 'Grid',
       status: cat.status || 'Active'
@@ -88,12 +116,23 @@ export default function Categories() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmitForm = (e) => {
+  const handleSubmitForm = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     if (editingCategory) {
       // Update existing
+      try {
+        await categoryService.updateCategory(editingCategory.id, {
+          name: formData.name,
+          deposit_amount: formData.depositAmount,
+          icon: formData.icon,
+          is_active: formData.status === 'Active'
+        });
+      } catch (err) {
+        console.warn('Backend category update failed, updating locally:', err);
+      }
+
       setCategories((prev) =>
         prev.map((c) =>
           c.id === editingCategory.id
@@ -103,8 +142,23 @@ export default function Categories() {
       );
     } else {
       // Create new
+      let newCatId = formData.slug.toLowerCase().replace(/\s+/g, '-');
+      try {
+        const res = await categoryService.createCategory({
+          name: formData.name,
+          deposit_amount: formData.depositAmount,
+          icon: formData.icon,
+          is_active: formData.status === 'Active'
+        });
+        if (res?.success && res.data) {
+          newCatId = res.data.id;
+        }
+      } catch (err) {
+        console.warn('Backend category create failed, saving locally:', err);
+      }
+
       const newCat = {
-        id: formData.slug.toLowerCase().replace(/\s+/g, '-'),
+        id: newCatId,
         ...formData,
         itemCount: 0
       };
@@ -121,8 +175,13 @@ export default function Categories() {
     });
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteModal.category) return;
+    try {
+      await categoryService.deleteCategory(deleteModal.category.id);
+    } catch (err) {
+      console.warn('Backend category delete failed, removing locally:', err);
+    }
     setCategories((prev) => prev.filter((c) => c.id !== deleteModal.category.id));
     setDeleteModal({ isOpen: false, category: null });
   };
@@ -167,6 +226,18 @@ export default function Categories() {
         <div className="flex items-center gap-1.5 text-xs font-semibold text-[#2C1D15]">
           <Package className="w-3.5 h-3.5 text-[#5C4033]" />
           <span>{cat.itemCount || 0} listings</span>
+        </div>
+      )
+    },
+    {
+      header: 'Intercity Deposit',
+      accessor: 'depositAmount',
+      render: (cat) => (
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#2C1D15]">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+          <span className="font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+            {(cat.depositAmount || 50000).toLocaleString()} MMK
+          </span>
         </div>
       )
     },
@@ -286,6 +357,29 @@ export default function Categories() {
                 {formErrors.slug && (
                   <p className="text-[11px] text-rose-600 mt-1">{formErrors.slug}</p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
+                  Fixed Intercity Escrow Deposit (MMK)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="5000"
+                    step="5000"
+                    value={formData.depositAmount || 50000}
+                    onChange={(e) => setFormData({ ...formData, depositAmount: Number(e.target.value) })}
+                    placeholder="e.g. 100000"
+                    className="w-full px-3 py-2 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0] font-mono"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#8C7A6B] font-semibold">
+                    MMK
+                  </span>
+                </div>
+                <p className="text-[10px] text-[#8C7A6B] mt-1">
+                  Required deposit when a member offers an item in this category for an intercity exchange. Refunded 100% after dual-sided delivery confirmation.
+                </p>
               </div>
 
               <div>

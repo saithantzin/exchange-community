@@ -156,8 +156,9 @@ export const ADMIN_CATEGORIES = [
     name: 'Electronics',
     slug: 'electronics',
     itemCount: 342,
+    depositAmount: 100000,
     icon: 'Laptop',
-    description: 'Headphones, laptops, monitors, accessories & gadgets',
+    description: 'Headphones, mobile phones, audio gear, accessories & gadgets',
     status: 'Active'
   },
   {
@@ -165,6 +166,7 @@ export const ADMIN_CATEGORIES = [
     name: 'Books',
     slug: 'books',
     itemCount: 512,
+    depositAmount: 20000,
     icon: 'BookOpen',
     description: 'Novels, textbooks, language guides & design publications',
     status: 'Active'
@@ -174,6 +176,7 @@ export const ADMIN_CATEGORIES = [
     name: 'Clothing',
     slug: 'clothing',
     itemCount: 280,
+    depositAmount: 30000,
     icon: 'Shirt',
     description: 'Jackets, casual wear, shoes, bags & minimalist apparel',
     status: 'Active'
@@ -183,6 +186,7 @@ export const ADMIN_CATEGORIES = [
     name: 'Household Items',
     slug: 'household',
     itemCount: 419,
+    depositAmount: 40000,
     icon: 'Coffee',
     description: 'Kitchenware, ceramic sets, planters & cozy home decor',
     status: 'Active'
@@ -192,6 +196,7 @@ export const ADMIN_CATEGORIES = [
     name: 'Furniture',
     slug: 'furniture',
     itemCount: 198,
+    depositAmount: 50000,
     icon: 'Armchair',
     description: 'Desks, ergonomic chairs, coffee tables, shelves & lamps',
     status: 'Active'
@@ -201,11 +206,24 @@ export const ADMIN_CATEGORIES = [
     name: 'Other Items',
     slug: 'other',
     itemCount: 164,
+    depositAmount: 50000,
     icon: 'Grid',
     description: 'Musical instruments, craft tools, sports gear & hobby goods',
     status: 'Active'
   }
 ];
+
+export const getCategoryDepositAmount = (categoryName) => {
+  if (!categoryName) return 50000;
+  const name = categoryName.toLowerCase();
+  if (name.includes('laptop') || name.includes('computer')) return 150000;
+  if (name.includes('electronic') || name.includes('phone') || name.includes('headphone') || name.includes('audio') || name.includes('mouse')) return 100000;
+  if (name.includes('book')) return 20000;
+  if (name.includes('cloth') || name.includes('apparel') || name.includes('fashion')) return 30000;
+  if (name.includes('furniture') || name.includes('desk') || name.includes('table') || name.includes('chair')) return 50000;
+  if (name.includes('house') || name.includes('kitchen') || name.includes('ceramic') || name.includes('decor')) return 40000;
+  return 50000;
+};
 
 export const ADMIN_AUDIT_LOGS = [
   {
@@ -392,8 +410,8 @@ export const ADMIN_EXCHANGES = [
       courier: 'Royal Express Courier',
       trackingNumber: 'RX-8921-MY',
       dispatched: true,
-      confirmedReceipt: false,
-      receiptDate: null
+      confirmedReceipt: true,
+      receiptDate: '2026-10-14 17:00'
     },
     partyB: {
       memberId: 3,
@@ -408,18 +426,145 @@ export const ADMIN_EXCHANGES = [
       confirmedReceipt: true,
       receiptDate: '2026-10-14 16:30'
     },
+    deposits: {
+      partyA: {
+        amount: 100000,
+        category: 'Electronics',
+        status: 'Verified',
+        paymentMethod: 'KBZPay',
+        referenceNumber: 'KBZ-89102488',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        verifiedAt: '2026-10-08 14:20'
+      },
+      partyB: {
+        amount: 100000,
+        category: 'Electronics',
+        status: 'Verified',
+        paymentMethod: 'WavePay',
+        referenceNumber: 'WV-99214412',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        verifiedAt: '2026-10-08 15:10'
+      }
+    },
+    externalContacts: {
+      partyA: {
+        telegram: '@thantzin_mdy',
+        viber: '+959798123456',
+        facebook: 'facebook.com/thantzin.mm',
+        preferredMethod: 'Telegram'
+      },
+      partyB: {
+        telegram: '@kyawzin_ygn',
+        viber: '+959450987654',
+        facebook: 'facebook.com/kyawzinhtet',
+        preferredMethod: 'Viber'
+      }
+    },
+    refundWorkflow: {
+      partyA: {
+        status: 'Processing Payout',
+        requestedAt: '2026-10-14 17:05',
+        paymentProvider: 'KBZPay',
+        accountNumber: '09798123456',
+        accountName: 'Thant Zin',
+        amount: 100000,
+        refundTransactionRef: null,
+        completedAt: null
+      },
+      partyB: {
+        status: 'Processing Payout',
+        requestedAt: '2026-10-14 16:45',
+        paymentProvider: 'WavePay',
+        accountNumber: '09450987654',
+        accountName: 'Kyaw Zin Htet',
+        amount: 100000,
+        refundTransactionRef: null,
+        completedAt: null
+      }
+    },
     courierTracking: {
       route: 'Mandalay ⇄ Yangon Express Transit',
-      currentLocation: 'Yangon Central Cargo Sorting Hub',
-      eta: 'Arriving Tomorrow'
+      currentLocation: 'Yangon & Mandalay Delivered',
+      eta: 'Delivered'
     },
     isCompleted: false,
     disputeFiled: false,
     history: [
       { date: '2026-10-08 10:15', event: 'Exchange proposal accepted by both members.' },
+      { date: '2026-10-08 14:20', event: 'Admin approved Party A deposit of 100,000 MMK (KBZPay).' },
+      { date: '2026-10-08 15:10', event: 'Admin approved Party B deposit of 100,000 MMK (WavePay). Contact details unlocked.' },
       { date: '2026-10-09 14:00', event: 'Party A uploaded Royal Express dispatch receipt (RX-8921-MY).' },
       { date: '2026-10-10 11:30', event: 'Party B uploaded Elite Cargo dispatch receipt (EC-7721-YM).' },
-      { date: '2026-10-14 16:30', event: 'Party B confirmed parcel receipt in Yangon. Awaiting Party A confirmation.' }
+      { date: '2026-10-14 16:30', event: 'Party B confirmed parcel receipt in Yangon.' },
+      { date: '2026-10-14 17:00', event: 'Party A confirmed parcel receipt in Mandalay. Both confirmed receipt.' },
+      { date: '2026-10-14 17:05', event: 'Both participants submitted deposit refund payout accounts. Awaiting admin payout.' }
+    ]
+  },
+  {
+    id: 'EXC-9018',
+    status: 'Deposit Review',
+    isIntercity: true,
+    handoverMethod: 'Intercity Courier Delivery',
+    initiatedDate: '2026-10-14',
+    partyA: {
+      memberId: 1,
+      name: 'Thant Zin',
+      email: 'thantzin@exchange.mm',
+      city: 'Mandalay (Chanayethazan)',
+      itemTitle: 'Vintage Film Camera (Olympus OM-1)',
+      itemImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80',
+      dispatched: false,
+      confirmedReceipt: false
+    },
+    partyB: {
+      memberId: 8,
+      name: 'Aye Chan Myat',
+      email: 'ayechan@exchange.mm',
+      city: 'Naypyidaw (Zabuthiri)',
+      itemTitle: 'Apple iPad 9th Gen 64GB WiFi',
+      itemImage: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&q=80',
+      dispatched: false,
+      confirmedReceipt: false
+    },
+    deposits: {
+      partyA: {
+        amount: 100000,
+        category: 'Electronics',
+        status: 'Payment Submitted',
+        paymentMethod: 'KBZPay',
+        referenceNumber: 'KBZ-99120488',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        submittedAt: '2026-10-14 11:30'
+      },
+      partyB: {
+        amount: 150000,
+        category: 'Electronics',
+        status: 'Verified',
+        paymentMethod: 'WavePay',
+        referenceNumber: 'WV-55210419',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        verifiedAt: '2026-10-14 10:15'
+      }
+    },
+    externalContacts: {
+      partyA: {
+        telegram: '@thantzin_mdy',
+        viber: '+959798123456',
+        preferredMethod: 'Telegram'
+      },
+      partyB: {
+        telegram: '@ayechan_npw',
+        viber: '+959261234567',
+        preferredMethod: 'Viber'
+      }
+    },
+    refundWorkflow: null,
+    isCompleted: false,
+    disputeFiled: false,
+    history: [
+      { date: '2026-10-14 09:30', event: 'Exchange proposal accepted by Aye Chan Myat.' },
+      { date: '2026-10-14 10:15', event: 'Admin approved Party B deposit of 150,000 MMK (WavePay).' },
+      { date: '2026-10-14 11:30', event: 'Party A uploaded KBZPay slip (KBZ-99120488). Awaiting Admin verification.' }
     ]
   },
   {

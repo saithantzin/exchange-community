@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../../services/api';
 import {
   Users,
   Package,
@@ -12,7 +13,10 @@ import {
   ShieldAlert,
   MapPin,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  CreditCard,
+  Wallet,
+  ShieldCheck
 } from 'lucide-react';
 import StatCard from '../../components/admin/StatCard';
 import {
@@ -25,15 +29,39 @@ import {
 export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState(ADMIN_AUDIT_LOGS);
+  const [dynamicStats, setDynamicStats] = useState(null);
 
-  const activeMembers = ADMIN_MEMBERS.filter(m => m.status === 'Active').length;
-  const suspendedMembers = ADMIN_MEMBERS.filter(m => m.status === 'Suspended').length;
+  const fetchStats = () => {
+    setRefreshing(true);
+    api.get('/admin/dashboard-stats')
+      .then((res) => {
+        if (res.data?.success && res.data.data) {
+          setDynamicStats(res.data.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load dynamic admin stats:', err?.message);
+      })
+      .finally(() => {
+        setTimeout(() => setRefreshing(false), 300);
+      });
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const activeMembers = dynamicStats?.members?.active ?? ADMIN_MEMBERS.filter(m => m.status === 'Active').length;
+  const totalMembers = dynamicStats?.members?.total ?? 1420;
+  const totalItems = dynamicStats?.items?.total ?? 2840;
+  const activeExchanges = dynamicStats?.exchanges?.active ?? 45;
+  const openDisputes = dynamicStats?.disputes?.open ?? 3;
+  const escrowHeldMMK = dynamicStats?.escrow?.funds_held_mmk ?? 4850000;
+  const pendingDeposits = dynamicStats?.escrow?.pending_deposit_reviews ?? 1;
+  const pendingRefunds = dynamicStats?.escrow?.pending_refund_payouts ?? 2;
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 400);
+    fetchStats();
   };
 
   const maxReg = ADMIN_REGISTRATION_DATA.reduce((max, d) => Math.max(max, d.members), 0);
@@ -72,7 +100,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Registered Members"
-          value="1,420"
+          value={totalMembers.toLocaleString()}
           subtitle={`${activeMembers} active accounts`}
           icon={Users}
           color="emerald"
@@ -81,8 +109,8 @@ export default function Dashboard() {
         />
         <StatCard
           title="Catalog Items"
-          value="2,840"
-          subtitle="2,150 open for swaps"
+          value={totalItems.toLocaleString()}
+          subtitle="Available for swaps"
           icon={Package}
           color="amber"
           trend="+8.1% listings"
@@ -90,7 +118,7 @@ export default function Dashboard() {
         />
         <StatCard
           title="Active Exchanges"
-          value="45"
+          value={activeExchanges.toLocaleString()}
           subtitle="Transit, dispatch & pending"
           icon={Repeat}
           color="blue"
@@ -98,7 +126,7 @@ export default function Dashboard() {
         />
         <StatCard
           title="Disputes & Reports"
-          value="3"
+          value={openDisputes.toLocaleString()}
           subtitle="Requires moderation"
           icon={AlertTriangle}
           color="rose"
@@ -145,6 +173,56 @@ export default function Dashboard() {
           </div>
           <div className="w-11 h-11 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-800">
             <ShieldAlert className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Intercity Escrow Funds & Operations Custody */}
+      <div className="bg-[#5C4033] text-white rounded-xl p-5 shadow-xs">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-[#DDD1BF]/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-white/10 text-amber-200">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-white">Intercity Escrow & Deposit Security</h3>
+              <p className="text-xs text-[#DDD1BF] mt-0.5">
+                Funds held in platform escrow custody to guarantee intercity exchange fulfillment across Myanmar.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/admin/exchanges"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#2C1D15] text-xs font-bold hover:bg-[#F9F6F0] transition-colors"
+          >
+            <span>Review Escrow Slips</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+          <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+            <span className="text-[11px] font-medium text-[#DDD1BF] uppercase tracking-wider block">Escrow Custody Funds</span>
+            <div className="text-2xl font-bold text-white mt-1">{escrowHeldMMK.toLocaleString()} MMK</div>
+            <span className="text-[11px] text-amber-200 mt-1 flex items-center gap-1">
+              <CreditCard className="w-3 h-3" /> Safe escrow holding
+            </span>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+            <span className="text-[11px] font-medium text-[#DDD1BF] uppercase tracking-wider block">Pending Deposit Slips</span>
+            <div className="text-2xl font-bold text-amber-300 mt-1">{pendingDeposits} Slip Reviews</div>
+            <span className="text-[11px] text-[#DDD1BF] mt-1 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Awaiting admin approval
+            </span>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+            <span className="text-[11px] font-medium text-[#DDD1BF] uppercase tracking-wider block">Deposit Refund Payouts</span>
+            <div className="text-2xl font-bold text-emerald-300 mt-1">{pendingRefunds} Ready for Payout</div>
+            <span className="text-[11px] text-emerald-200 mt-1 flex items-center gap-1">
+              <Wallet className="w-3 h-3" /> Parcels received
+            </span>
           </div>
         </div>
       </div>

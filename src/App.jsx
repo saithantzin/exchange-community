@@ -41,6 +41,7 @@ import AdminRouteGuard from './routes/AdminRoutes';
 export default function App() {
   const location = useLocation();
   const isAdminPath = location.pathname.startsWith('/admin');
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
 
   // Dedicated Admin routing subtree without user navbar/footer
   if (isAdminPath) {
@@ -67,8 +68,8 @@ export default function App() {
   // Public & Member Platform Routing
   return (
     <div className="min-vh-100 d-flex flex-column">
-      {/* Sticky Header Navigation */}
-      <Navbar />
+      {/* Sticky Header Navigation (Hidden on Login & Register) */}
+      {!isAuthPage && <Navbar />}
 
       {/* Main Routed Content */}
       <main className="flex-grow-1">
@@ -176,8 +177,8 @@ export default function App() {
         </Routes>
       </main>
 
-      {/* Persistent Footer */}
-      <Footer />
+      {/* Persistent Footer (Hidden on Login & Register) */}
+      {!isAuthPage && <Footer />}
     </div>
   );
 }

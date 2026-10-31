@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
-  const { login, quickLogin } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -24,27 +24,30 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const res = login(email, password);
+    try {
+      const res = await login(email, password);
       setLoading(false);
       if (res.success) {
         navigate(destination, { replace: true });
       } else {
         setError(res.message || 'Invalid credentials. Please verify your email.');
       }
-    }, 400);
-  };
-
-  const handleQuickDemo = (city) => {
-    quickLogin(city);
-    navigate(destination, { replace: true });
+    } catch (err) {
+      setLoading(false);
+      setError('Connection failed. Please check backend server.');
+    }
   };
 
   return (
-    <div className="py-5 d-flex align-items-center" style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh' }}>
+    <div className="py-5 d-flex align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-warm)', minHeight: '100vh' }}>
       <div className="container-xl">
         <div className="row justify-content-center">
           <div className="col-12 col-md-8 col-lg-5">
+            <div className="mb-3">
+              <Link to="/" className="text-decoration-none text-muted small d-inline-flex align-items-center gap-1 hover-dark">
+                <i className="bi bi-arrow-left"></i> Back to Homepage
+              </Link>
+            </div>
             
             <div className="bg-white p-4 p-md-5 rounded-3 border shadow-sm" style={{ borderColor: 'var(--border-light)' }}>
               
@@ -60,31 +63,6 @@ export default function LoginPage() {
                 <p className="text-muted" style={{ fontSize: '0.86rem' }}>
                   Sign in to manage your exchanges and discover local matches.
                 </p>
-              </div>
-
-              {/* Quick Demo Fill Buttons for Reviewers */}
-              <div className="p-3 mb-4 rounded-3 border text-center" style={{ backgroundColor: '#FAF7F2', borderColor: 'var(--border-light)' }}>
-                <span className="text-muted d-block small mb-2 fw-medium">
-                  ⚡ 1-Click Demo Logins for Faculty / Reviewer:
-                </span>
-                <div className="d-flex justify-content-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemo('MDY')}
-                    className="btn btn-sm btn-outline-dark"
-                    style={{ fontSize: '0.74rem' }}
-                  >
-                    <i className="bi bi-person-fill me-1"></i> Mandalay Member (Thant Zin)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemo('YGN')}
-                    className="btn btn-sm btn-outline-dark"
-                    style={{ fontSize: '0.74rem' }}
-                  >
-                    <i className="bi bi-person-fill me-1"></i> Yangon Member (Kyaw Zin)
-                  </button>
-                </div>
               </div>
 
               {/* Error Message */}

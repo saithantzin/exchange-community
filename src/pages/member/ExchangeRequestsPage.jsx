@@ -5,7 +5,7 @@ import { useExchange } from '../../context/ExchangeContext';
 import MemberProfileModal from '../../components/MemberProfileModal';
 
 export default function ExchangeRequestsPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, updateProfile } = useAuth();
   const { requests, acceptRequest, rejectRequest, cancelRequest, exchanges } = useExchange();
   const navigate = useNavigate();
 
@@ -16,20 +16,76 @@ export default function ExchangeRequestsPage() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
+  // Intercity Contact Requirement Modal
+  const [showContactPromptModal, setShowContactPromptModal] = useState(false);
+  const [pendingAcceptId, setPendingAcceptId] = useState(null);
+  const [modalTelegram, setModalTelegram] = useState('');
+  const [modalViber, setModalViber] = useState(currentUser?.phone || '09798123456');
+  const [modalFacebook, setModalFacebook] = useState('');
+  const [modalPreferred, setModalPreferred] = useState('viber');
+
   const incomingList = requests.filter(r => r.type === 'incoming');
   const outgoingList = requests.filter(r => r.type === 'outgoing');
 
   const handleAccept = (id) => {
+    const req = requests.find(r => r.id === id);
+    const isIntercity = Boolean(
+      req?.isIntercity ||
+      req?.handoverMethod?.toLowerCase().includes('courier') ||
+      (req?.requestedItem?.city && req?.offeredItem?.city && req.requestedItem.city !== req.offeredItem.city)
+    );
+
+    const hasContact = Boolean(
+      currentUser?.communicationContacts?.telegram ||
+      currentUser?.communicationContacts?.viber ||
+      currentUser?.communicationContacts?.facebook ||
+      currentUser?.communicationContacts?.alternative
+    );
+
+    if (isIntercity && !hasContact) {
+      setPendingAcceptId(id);
+      setShowContactPromptModal(true);
+      return;
+    }
+
     const createdExchange = acceptRequest(id);
     const exchangeId = createdExchange?.id;
 
-    setToastMessage({
-      title: 'Exchange Proposal Accepted!',
-      text: createdExchange?.isIntercity
-        ? 'Intercity trade workflow initialized! Both parties can now track courier dispatch.'
-        : 'Exchange accepted! In-person trade workflow created.',
-      exchangeId: exchangeId
+    if (isIntercity && exchangeId) {
+      navigate(`/exchange/${exchangeId}`);
+    } else {
+      setToastMessage({
+        title: 'Exchange Proposal Accepted!',
+        text: 'Exchange accepted! In-person trade workflow created.',
+        exchangeId: exchangeId
+      });
+    }
+  };
+
+  const handleSaveContactAndAccept = (e) => {
+    e.preventDefault();
+    if (!modalTelegram.trim() && !modalViber.trim() && !modalFacebook.trim()) {
+      alert('Please provide at least one communication contact method (Telegram, Viber, or Facebook).');
+      return;
+    }
+
+    updateProfile({
+      communicationContacts: {
+        telegram: modalTelegram,
+        viber: modalViber,
+        facebook: modalFacebook,
+        preferredMethod: modalPreferred
+      }
     });
+
+    setShowContactPromptModal(false);
+    if (pendingAcceptId) {
+      const createdExchange = acceptRequest(pendingAcceptId);
+      setPendingAcceptId(null);
+      if (createdExchange?.id) {
+        navigate(`/exchange/${createdExchange.id}`);
+      }
+    }
   };
 
   const handleReject = (id) => {
@@ -471,6 +527,105 @@ export default function ExchangeRequestsPage() {
         )}
 
       </div>
+
+      {/* Intercity Contact Prompt Modal */}
+      {showContactPromptModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(30, 20, 15, 0.65)', backdropFilter: 'blur(3px)', zIndex: 1080 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+              <div className="modal-header border-bottom py-3 px-4" style={{ backgroundColor: 'var(--bg-warm, #F9F6F0)' }}>
+                <h5 className="modal-title font-serif fw-bold text-dark d-flex align-items-center gap-2">
+                  <i className="bi bi-shield-check text-primary"></i>
+                  Intercity Contact Details Required
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setShowContactPromptModal(false)}></button>
+              </div>
+
+              <form onSubmit={handleSaveContactAndAccept}>
+                <div className="modal-body p-4">
+                  <p className="text-muted small mb-3" style={{ fontSize: '0.84rem', lineHeight: 1.6 }}>
+                    Before participating in an <strong>Intercity Exchange</strong>, platform rules require at least one external communication channel (Telegram, Viber, or Facebook Messenger).
+                  </p>
+
+                  <div className="p-2.5 rounded-3 border mb-3 bg-light d-flex align-items-start gap-2" style={{ fontSize: '0.78rem' }}>
+                    <i className="bi bi-lock-fill text-success mt-0.5"></i>
+                    <div className="text-muted">
+                      <strong>Privacy Protected:</strong> These contact details remain confidential and are revealed to your partner <strong>only after both escrow deposits are verified</strong>.
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label small fw-semibold text-dark mb-1">
+                      <i className="bi bi-telephone-fill text-primary me-1"></i> Viber Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. 09798123456"
+                      value={modalViber}
+                      onChange={(e) => setModalViber(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label small fw-semibold text-dark mb-1">
+                      <i className="bi bi-telegram text-info me-1"></i> Telegram Handle / Phone
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. @thantzin_mdy"
+                      value={modalTelegram}
+                      onChange={(e) => setModalTelegram(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label small fw-semibold text-dark mb-1">
+                      <i className="bi bi-facebook text-primary me-1"></i> Facebook Messenger Profile
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. facebook.com/thantzin.mdy"
+                      value={modalFacebook}
+                      onChange={(e) => setModalFacebook(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mb-1">
+                    <label className="form-label small fw-semibold text-dark mb-1">
+                      Preferred Contact Channel:
+                    </label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={modalPreferred}
+                      onChange={(e) => setModalPreferred(e.target.value)}
+                    >
+                      <option value="viber">Viber</option>
+                      <option value="telegram">Telegram</option>
+                      <option value="facebook">Facebook Messenger</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="modal-footer border-top py-2.5 px-4 bg-light">
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowContactPromptModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-sm btn-success px-4">
+                    Save Contact &amp; Accept Exchange
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Member Profile Modal */}
       <MemberProfileModal

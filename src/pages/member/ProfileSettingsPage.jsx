@@ -9,6 +9,13 @@ export default function ProfileSettingsPage() {
   const [city, setCity] = useState(currentUser?.city || 'Mandalay (MDY)');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+
+  // Communication Contact Information State (Requirement 1)
+  const [telegram, setTelegram] = useState(currentUser?.communicationContacts?.telegram || '');
+  const [viber, setViber] = useState(currentUser?.communicationContacts?.viber || currentUser?.phone || '');
+  const [facebook, setFacebook] = useState(currentUser?.communicationContacts?.facebook || '');
+  const [alternative, setAlternative] = useState(currentUser?.communicationContacts?.alternative || '');
+  const [preferredMethod, setPreferredMethod] = useState(currentUser?.communicationContacts?.preferredMethod || 'telegram');
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -24,9 +31,16 @@ export default function ProfileSettingsPage() {
       city,
       cityCode: city.includes('YGN') ? 'YGN' : 'MDY',
       bio,
-      phone
+      phone,
+      communicationContacts: {
+        telegram,
+        viber,
+        facebook,
+        alternative,
+        preferredMethod
+      }
     });
-    setToastMessage('Profile settings updated successfully!');
+    setToastMessage('Profile and communication contact settings updated successfully!');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -186,6 +200,106 @@ export default function ProfileSettingsPage() {
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                     ></textarea>
+                  </div>
+
+                  {/* Communication Contact Information Section (Requirement 1) */}
+                  <div className="col-12 mt-4 pt-3 border-top" style={{ borderColor: 'var(--border-light)' }}>
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <h6 className="font-serif fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i className="bi bi-chat-heart-fill text-primary"></i>
+                        Communication Contact Information (Intercity Exchanges)
+                      </h6>
+                      <span className="badge bg-success-subtle text-success small" style={{ fontSize: '0.70rem' }}>
+                        Required for Intercity
+                      </span>
+                    </div>
+
+                    <p className="text-muted small mb-3" style={{ fontSize: '0.80rem', lineHeight: 1.5 }}>
+                      Provide your external messaging accounts so trade partners in other cities can contact you via Viber, Telegram, or Facebook Messenger.
+                    </p>
+
+                    <div className="p-3 rounded-3 border mb-3.5 bg-light d-flex align-items-start gap-2.5" style={{ fontSize: '0.78rem', borderColor: '#EBE2D8' }}>
+                      <i className="bi bi-shield-check text-success fs-5 mt-0.5 flex-shrink-0"></i>
+                      <div className="text-muted" style={{ lineHeight: 1.5 }}>
+                        <strong className="text-dark">Strict Privacy Guarantee:</strong> These communication details are <strong>never shown publicly</strong> on your profile or item listings. They are only revealed to your verified trade partner <strong>after both deposits are verified</strong>.
+                      </div>
+                    </div>
+
+                    <div className="row g-3">
+                      {/* Telegram */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-dark mb-1">
+                          <i className="bi bi-telegram text-info me-1"></i> Telegram Username or Phone
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. @username or 09xxxxxxxxx"
+                          value={telegram}
+                          onChange={(e) => setTelegram(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Viber */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-dark mb-1">
+                          <i className="bi bi-telephone-fill text-primary me-1"></i> Viber Phone Number
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. 09798123456 or +959..."
+                          value={viber}
+                          onChange={(e) => setViber(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Facebook Messenger */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-dark mb-1">
+                          <i className="bi bi-facebook text-primary me-1"></i> Facebook Messenger Profile URL or Username
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. https://facebook.com/username or m.me/..."
+                          value={facebook}
+                          onChange={(e) => setFacebook(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Alternative */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-dark mb-1">
+                          <i className="bi bi-plus-circle text-secondary me-1"></i> Alternative Contact Method
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. Signal: +959... or WhatsApp"
+                          value={alternative}
+                          onChange={(e) => setAlternative(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Preferred Contact Method */}
+                      <div className="col-12">
+                        <label className="form-label small fw-semibold text-dark mb-1">
+                          Preferred Contact Method for Intercity Trades:
+                        </label>
+                        <select
+                          className="form-select form-select-sm"
+                          value={preferredMethod}
+                          onChange={(e) => setPreferredMethod(e.target.value)}
+                          style={{ maxWidth: '320px' }}
+                        >
+                          <option value="telegram">Telegram (Fastest for Photos & Slips)</option>
+                          <option value="viber">Viber (Voice Calls & Direct Chat)</option>
+                          <option value="facebook">Facebook Messenger (Profile Trust)</option>
+                          <option value="alternative">Alternative Contact Method</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

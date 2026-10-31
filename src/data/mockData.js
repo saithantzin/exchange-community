@@ -597,6 +597,57 @@ export const INITIAL_EXCHANGES = [
     id: 'EXC-8801',
     status: 'In Transit',
     isIntercity: true,
+    intercityStage: 4,
+    deposits: {
+      partyA: {
+        itemTitle: 'Logitech MX Master 3S Wireless Mouse',
+        category: 'Electronics',
+        amount: 100000,
+        status: 'Verified',
+        paymentMethod: 'KBZPay',
+        referenceNumber: 'KBZ-491204',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        submittedAt: '2026-10-08 11:20',
+        verifiedAt: '2026-10-08 11:35'
+      },
+      partyB: {
+        itemTitle: 'Sony WH-1000XM4 Noise Canceling Headphones',
+        category: 'Electronics',
+        amount: 100000,
+        status: 'Verified',
+        paymentMethod: 'WavePay',
+        referenceNumber: 'WAVE-819441',
+        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
+        submittedAt: '2026-10-08 11:15',
+        verifiedAt: '2026-10-08 11:30'
+      }
+    },
+    courierArrangement: {
+      confirmed: true,
+      confirmedAt: '2026-10-09'
+    },
+    refundWorkflow: {
+      initiated: false,
+      status: 'Pending',
+      partyA: {
+        amount: 100000,
+        walletType: 'KBZPay',
+        accountNumber: '',
+        accountName: '',
+        status: 'Pending Details',
+        requestedAt: null,
+        transactionRef: null
+      },
+      partyB: {
+        amount: 100000,
+        walletType: 'WavePay',
+        accountNumber: '09450987654',
+        accountName: 'Kyaw Zin Htet',
+        status: 'Processing Payout',
+        requestedAt: 'Today',
+        transactionRef: null
+      }
+    },
     handoverMethod: 'Intercity Courier Delivery',
     initiatedDate: '2026-10-08',
     itemA: {

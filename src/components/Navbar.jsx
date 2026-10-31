@@ -69,21 +69,23 @@ export default function Navbar() {
 
           {/* Right Action Buttons */}
           <div className="d-none d-md-flex align-items-center gap-3">
-            {/* List an Item Button */}
-            <Link
-              to={isLoggedIn ? "/add-item" : "/login"}
-              className="btn py-2 px-3 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm"
-              style={{
-                backgroundColor: 'var(--primary-brown)',
-                color: '#FFFFFF',
-                fontSize: '0.88rem',
-                borderRadius: '8px',
-                border: 'none',
-                letterSpacing: '0.02em'
-              }}
-            >
-              <i className="bi bi-plus-circle me-1"></i> List an Item
-            </Link>
+            {/* List an Item Button (Only shown when logged in) */}
+            {isLoggedIn && (
+              <Link
+                to="/add-item"
+                className="btn py-2 px-3 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-sm"
+                style={{
+                  backgroundColor: 'var(--primary-brown)',
+                  color: '#FFFFFF',
+                  fontSize: '0.88rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  letterSpacing: '0.02em'
+                }}
+              >
+                <i className="bi bi-plus-circle me-1"></i> List an Item
+              </Link>
+            )}
 
             {/* If Member is Logged in, show Notifications Bell */}
             {isLoggedIn && (
@@ -290,13 +292,15 @@ export default function Navbar() {
             </div>
 
             <div className="py-2 d-flex flex-column gap-2 pb-3">
-              <Link
-                to={isLoggedIn ? "/add-item" : "/login"}
-                onClick={() => setMobileMenuOpen(false)}
-                className="btn-nordic-secondary w-100 py-2 text-center text-decoration-none"
-              >
-                <i className="bi bi-plus-circle me-1"></i> List an Item
-              </Link>
+              {isLoggedIn && (
+                <Link
+                  to="/add-item"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="btn-nordic-secondary w-100 py-2 text-center text-decoration-none"
+                >
+                  <i className="bi bi-plus-circle me-1"></i> List an Item
+                </Link>
+              )}
 
               {!isLoggedIn ? (
                 <div className="d-flex gap-2 mt-2">
