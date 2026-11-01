@@ -18,7 +18,16 @@ export default function ItemDetailsPage() {
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  const imagesList = item.images && item.images.length > 0 ? item.images : [item.image];
+  const imagesList = item.images && item.images.length > 0 ? item.images : [item.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80'];
+
+  // Check if current logged-in user is the owner of this post
+  const isOwner = Boolean(
+    currentUser && (
+      (item.ownerId && String(currentUser.id) === String(item.ownerId)) ||
+      (item.owner?.id && String(currentUser.id) === String(item.owner.id)) ||
+      (item.owner?.name && currentUser.name && item.owner.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
+    )
+  );
 
   const handleProposeClick = () => {
     if (!isLoggedIn) {
@@ -74,12 +83,16 @@ export default function ItemDetailsPage() {
           
           {/* Left Column: Image Gallery */}
           <div className="col-12 col-lg-6">
-            <div className="position-relative rounded-3 overflow-hidden shadow-sm bg-white border mb-3" style={{ height: '420px', borderColor: 'var(--border-light)' }}>
+            <div className="position-relative rounded-3 overflow-hidden shadow-sm bg-light border mb-3 d-flex align-items-center justify-content-center" style={{ height: '420px', borderColor: 'var(--border-light)' }}>
               <img
-                src={imagesList[activeImageIndex] || item.image}
+                src={imagesList[activeImageIndex] || item.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80'}
                 alt={item.title}
                 className="w-100 h-100"
-                style={{ objectFit: 'cover' }}
+                style={{ objectFit: 'contain', maxHeight: '420px' }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80';
+                }}
               />
 
               <span
@@ -102,7 +115,7 @@ export default function ItemDetailsPage() {
 
             {/* Thumbnails if multiple images exist */}
             {imagesList.length > 1 && (
-              <div className="d-flex gap-2">
+              <div className="d-flex gap-2 flex-wrap">
                 {imagesList.map((img, idx) => (
                   <button
                     key={idx}
@@ -116,7 +129,16 @@ export default function ItemDetailsPage() {
                       borderWidth: activeImageIndex === idx ? '2px' : '1px'
                     }}
                   >
-                    <img src={img} alt="" className="w-100 h-100 rounded" style={{ objectFit: 'cover' }} />
+                    <img
+                      src={img}
+                      alt=""
+                      className="w-100 h-100 rounded"
+                      style={{ objectFit: 'contain' }}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80';
+                      }}
+                    />
                   </button>
                 ))}
               </div>
@@ -250,29 +272,56 @@ export default function ItemDetailsPage() {
               </div>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="d-flex gap-3">
-              <button
-                type="button"
-                onClick={handleProposeClick}
-                className="btn-nordic-primary flex-grow-1 py-3 shadow-sm"
-              >
-                {isLoggedIn ? (
-                  <span><i className="bi bi-send-fill me-2"></i> Send Exchange Proposal</span>
-                ) : (
-                  <span><i className="bi bi-box-arrow-in-right me-2"></i> Log In to Propose Exchange</span>
-                )}
-              </button>
+            {/* CTA Buttons / Owner Actions */}
+            {isOwner ? (
+              <div>
+                <div className="alert alert-secondary py-3 px-3 mb-3 d-flex align-items-center gap-2 rounded-3 border" style={{ fontSize: '0.86rem', borderColor: 'var(--border-medium)' }}>
+                  <i className="bi bi-person-check-fill text-primary fs-5 flex-shrink-0"></i>
+                  <div>
+                    <strong className="text-dark">This is your item listing.</strong> You cannot propose an exchange for your own post.
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => alert(`Item "${item.title}" reported to moderators for verification.`)}
-                className="btn btn-outline-secondary px-3 py-3"
-                title="Report Inaccurate Listing"
-              >
-                <i className="bi bi-flag"></i>
-              </button>
-            </div>
+                <div className="d-flex gap-3">
+                  <Link
+                    to={`/edit-item/${item.id}`}
+                    className="btn-nordic-primary flex-grow-1 py-3 text-center text-decoration-none shadow-sm d-flex align-items-center justify-content-center gap-2"
+                  >
+                    <i className="bi bi-pencil-square"></i> Edit Listing
+                  </Link>
+
+                  <Link
+                    to="/my-items"
+                    className="btn btn-outline-dark px-4 py-3 text-center text-decoration-none d-flex align-items-center justify-content-center gap-2"
+                  >
+                    <i className="bi bi-collection"></i> Manage in My Items
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="d-flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleProposeClick}
+                  className="btn-nordic-primary flex-grow-1 py-3 shadow-sm"
+                >
+                  {isLoggedIn ? (
+                    <span><i className="bi bi-send-fill me-2"></i> Send Exchange Proposal</span>
+                  ) : (
+                    <span><i className="bi bi-box-arrow-in-right me-2"></i> Log In to Propose Exchange</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => alert(`Item "${item.title}" reported to moderators for verification.`)}
+                  className="btn btn-outline-secondary px-3 py-3"
+                  title="Report Inaccurate Listing"
+                >
+                  <i className="bi bi-flag"></i>
+                </button>
+              </div>
+            )}
 
             {!isLoggedIn && (
               <p className="text-center text-muted mt-3 mb-0" style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>

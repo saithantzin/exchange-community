@@ -214,10 +214,35 @@ class ItemController extends Controller
     }
 
     /**
-     * Upload an item image file.
+     * Upload item image file(s) - Supports both single and multiple uploads.
      */
     public function uploadImage(Request $request): JsonResponse
     {
+        // Support multiple images upload (e.g. files[] or images[])
+        $files = $request->file('images') ?: $request->file('files');
+        if ($files && is_array($files)) {
+            $validator = Validator::make($request->all(), [
+                'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+                'files.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->errorResponse('Validation failed', 422, $validator->errors());
+            }
+
+            $urls = [];
+            foreach ($files as $file) {
+                $path = $file->store('items', 'public');
+                $urls[] = asset('storage/' . $path);
+            }
+
+            return $this->successResponse([
+                'urls' => $urls,
+                'url' => $urls[0] ?? null,
+            ], 'Images uploaded successfully', 201);
+        }
+
+        // Support single image upload
         $validator = Validator::make($request->all(), [
             'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
@@ -233,6 +258,7 @@ class ItemController extends Controller
             return $this->successResponse([
                 'path' => $path,
                 'url' => $url,
+                'urls' => [$url],
             ], 'Image uploaded successfully', 201);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to upload image: ' . $e->getMessage(), 500);

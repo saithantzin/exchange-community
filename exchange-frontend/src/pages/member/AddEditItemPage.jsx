@@ -26,9 +26,7 @@ export default function AddEditItemPage() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [images, setImages] = useState([
-    'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80'
-  ]);
+  const [images, setImages] = useState([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,24 +68,41 @@ export default function AddEditItemPage() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
     setUploadingImage(true);
+    setError('');
     try {
-      const res = await itemService.uploadImage(file);
-      if (res?.success && res.data?.url) {
-        setImages(prev => [...prev, res.data.url]);
+      const res = await itemService.uploadImage(fileList);
+      if (res?.success) {
+        if (res.data?.urls?.length > 0) {
+          setImages(prev => [...prev, ...res.data.urls]);
+        } else if (res.data?.url) {
+          setImages(prev => [...prev, res.data.url]);
+        }
       } else {
-        setError('Failed to upload image to server');
+        // Fallback: convert files to Base64 data URLs so they persist reliably
+        for (const file of Array.from(fileList)) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            setImages(prev => [...prev, evt.target.result]);
+          };
+          reader.readAsDataURL(file);
+        }
       }
     } catch (err) {
-      console.warn('Image upload error:', err);
-      // Fallback: create object URL for local display
-      const localUrl = URL.createObjectURL(file);
-      setImages(prev => [...prev, localUrl]);
+      console.warn('Backend image upload error, using persistent data URL:', err);
+      for (const file of Array.from(fileList)) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          setImages(prev => [...prev, evt.target.result]);
+        };
+        reader.readAsDataURL(file);
+      }
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -324,10 +339,11 @@ export default function AddEditItemPage() {
                       <div className="col-md-5">
                         <label className="btn btn-outline-dark w-100 d-flex align-items-center justify-content-center gap-2 cursor-pointer mb-0">
                           <i className="bi bi-cloud-arrow-up-fill"></i>
-                          <span>{uploadingImage ? 'Uploading...' : 'Upload File from Device'}</span>
+                          <span>{uploadingImage ? 'Uploading Photos...' : 'Upload Photos (Multi-select)'}</span>
                           <input
                             type="file"
                             accept="image/*"
+                            multiple
                             onChange={handleFileUpload}
                             className="d-none"
                             disabled={uploadingImage}
@@ -339,8 +355,17 @@ export default function AddEditItemPage() {
                     {/* Previews Grid */}
                     <div className="d-flex flex-wrap gap-2 pt-2">
                       {images.map((img, idx) => (
-                        <div key={idx} className="position-relative rounded border overflow-hidden" style={{ width: '90px', height: '90px' }}>
-                          <img src={img} alt="Preview" className="w-100 h-100" style={{ objectFit: 'cover' }} />
+                        <div key={idx} className="position-relative rounded border overflow-hidden bg-light d-flex align-items-center justify-content-center" style={{ width: '90px', height: '90px' }}>
+                          <img
+                            src={img}
+                            alt="Preview"
+                            className="w-100 h-100"
+                            style={{ objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80';
+                            }}
+                          />
                           <button
                             type="button"
                             onClick={() => handleRemoveImage(idx)}

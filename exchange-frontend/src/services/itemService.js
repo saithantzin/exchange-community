@@ -50,11 +50,18 @@ export const itemService = {
   },
 
   /**
-   * (Auth) Upload an item image file.
+   * (Auth) Upload item image file(s) - supports single or multiple files.
    */
-  async uploadImage(file) {
+  async uploadImage(fileOrFiles) {
     const formData = new FormData();
-    formData.append('image', file);
+    if (Array.isArray(fileOrFiles) || fileOrFiles instanceof FileList) {
+      Array.from(fileOrFiles).forEach((file) => {
+        formData.append('images[]', file);
+      });
+    } else {
+      formData.append('image', fileOrFiles);
+    }
+
     const response = await api.post('/items/upload-image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

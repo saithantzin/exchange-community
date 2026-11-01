@@ -279,7 +279,15 @@ export default function BrowseItemsPage() {
                 >
                   {/* Image & Badges */}
                   <div className="card-img-container">
-                    <img src={item.image} alt={item.title} loading="lazy" />
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80';
+                      }}
+                    />
                     
                     <span
                       className="badge-condition"
@@ -344,10 +352,14 @@ export default function BrowseItemsPage() {
                     <div className="d-flex align-items-center justify-content-between pt-3 border-top" style={{ borderColor: 'var(--border-light)' }}>
                       <div className="d-flex align-items-center gap-2">
                         <img
-                          src={item.owner.avatar}
-                          alt={item.owner.name}
+                          src={item.owner?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80'}
+                          alt={item.owner?.name || 'Owner'}
                           className="rounded-circle"
                           style={{ width: '28px', height: '28px', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80';
+                          }}
                         />
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>
                           {item.owner.name.split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner.rating}★</span>
