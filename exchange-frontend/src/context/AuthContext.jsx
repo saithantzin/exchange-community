@@ -184,9 +184,9 @@ export function AuthProvider({ children }) {
         email: userData.email,
         password: userData.password,
         phone: userData.phone || '',
+        profile_image: userData.profile_image || userData.avatar || null,
         state_region_id: userData.state_region_id || null,
         township_id: userData.township_id || null,
-        address: userData.address || '',
         communication_contacts: []
       };
 

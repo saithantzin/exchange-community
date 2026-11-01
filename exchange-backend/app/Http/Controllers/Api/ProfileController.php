@@ -38,7 +38,6 @@ class ProfileController extends Controller
             'phone' => 'nullable|string|max:25',
             'state_region_id' => 'nullable|exists:state_regions,id',
             'township_id' => 'nullable|exists:townships,id',
-            'address' => 'nullable|string|max:500',
             'bio' => 'nullable|string|max:1000',
             'profile_image' => 'nullable|string',
             'communication_contacts' => 'nullable|array',
@@ -55,7 +54,7 @@ class ProfileController extends Controller
             DB::beginTransaction();
 
             $user->update($request->only([
-                'name', 'phone', 'state_region_id', 'township_id', 'address', 'bio', 'profile_image'
+                'name', 'phone', 'state_region_id', 'township_id', 'bio', 'profile_image'
             ]));
 
             // If communication contacts submitted, sync them

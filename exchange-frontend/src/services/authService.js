@@ -10,6 +10,20 @@ export const authService = {
   },
 
   /**
+   * Upload user avatar / profile image.
+   */
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const response = await api.post('/upload-avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
    * User / Member login.
    */
   async login(credentials) {

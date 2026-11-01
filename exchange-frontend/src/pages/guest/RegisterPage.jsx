@@ -12,6 +12,8 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [profileImage, setProfileImage] = useState('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Dynamic Location state from Database
   const [locations, setLocations] = useState([]);
@@ -64,6 +66,28 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const res = await authService.uploadAvatar(file);
+      if (res?.success && res.data?.url) {
+        setProfileImage(res.data.url);
+      } else {
+        const localUrl = URL.createObjectURL(file);
+        setProfileImage(localUrl);
+      }
+    } catch (err) {
+      console.warn('Avatar upload to server failed, using local preview:', err);
+      const localUrl = URL.createObjectURL(file);
+      setProfileImage(localUrl);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -98,6 +122,7 @@ export default function RegisterPage() {
         city: cityFormatted,
         phone,
         password,
+        profile_image: profileImage,
         state_region_id: selectedRegionId,
         township_id: selectedTownshipId,
         communicationContacts: {
@@ -159,6 +184,48 @@ export default function RegisterPage() {
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
                   
+                  {/* Profile Picture Upload */}
+                  <div className="col-12 text-center pb-2">
+                    <div className="position-relative d-inline-block">
+                      <img
+                        src={profileImage}
+                        alt="Profile Preview"
+                        className="rounded-circle border shadow-sm"
+                        style={{ width: '90px', height: '90px', objectFit: 'cover', borderColor: 'var(--primary-brown)' }}
+                      />
+                      <label
+                        className="position-absolute bottom-0 end-0 bg-dark text-white rounded-circle p-1 shadow cursor-pointer d-flex align-items-center justify-content-center"
+                        style={{ width: '32px', height: '32px', cursor: 'pointer' }}
+                        title="Upload profile picture"
+                      >
+                        <i className={`bi ${uploadingAvatar ? 'bi-hourglass-split' : 'bi-camera-fill'} fs-6`}></i>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          className="d-none"
+                          disabled={uploadingAvatar}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-2">
+                      <label className="btn btn-sm btn-outline-secondary py-1 px-3" style={{ fontSize: '0.78rem' }}>
+                        <i className="bi bi-cloud-arrow-up me-1"></i>
+                        {uploadingAvatar ? 'Uploading...' : 'Upload Profile Photo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          className="d-none"
+                          disabled={uploadingAvatar}
+                        />
+                      </label>
+                      <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+                        Add a friendly photo to foster trust with swap partners.
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Name */}
                   <div className="col-12">
                     <label className="form-label small fw-semibold text-dark">Full Name <span className="text-danger">*</span></label>

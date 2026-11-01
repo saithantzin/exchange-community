@@ -24,7 +24,6 @@ class User extends Authenticatable
         'profile_image',
         'state_region_id',
         'township_id',
-        'address',
         'role',
         'account_status',
         'suspension_reason',

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 // Public Routes (Browse, Search, Auth & Locations)
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/upload-avatar', [AuthController::class, 'uploadAvatar']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/admin/login', [AuthController::class, 'adminLogin']);
 Route::get('/locations', [AuthController::class, 'getLocations']);

@@ -28,9 +28,9 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:6',
             'phone' => 'nullable|string|max:25',
+            'profile_image' => 'nullable',
             'state_region_id' => 'nullable|exists:state_regions,id',
             'township_id' => 'nullable|exists:townships,id',
-            'address' => 'nullable|string|max:500',
             'communication_contacts' => 'nullable|array',
             'communication_contacts.*.platform' => 'required_with:communication_contacts|string',
             'communication_contacts.*.contact_value' => 'required_with:communication_contacts|string',
@@ -48,15 +48,21 @@ class AuthController extends Controller
         try {
             DB::beginTransaction();
 
+            $profileImage = $request->profile_image;
+            if ($request->hasFile('profile_image')) {
+                $path = $request->file('profile_image')->store('avatars', 'public');
+                $profileImage = asset('storage/' . $path);
+            }
+
             $user = User::create([
                 'name' => $request->name,
                 'username' => $request->username,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'phone' => $request->phone,
+                'profile_image' => $profileImage ?: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80',
                 'state_region_id' => $request->state_region_id,
                 'township_id' => $request->township_id,
-                'address' => $request->address,
                 'role' => 'user',
                 'account_status' => 'Active',
             ]);
@@ -194,6 +200,32 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return $this->successResponse(null, 'Successfully logged out');
+    }
+
+    /**
+     * Upload an avatar image file (Public helper during registration or profile update).
+     */
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation failed', 422, $validator->errors());
+        }
+
+        try {
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $url = asset('storage/' . $path);
+
+            return $this->successResponse([
+                'path' => $path,
+                'url' => $url,
+            ], 'Avatar uploaded successfully', 201);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to upload avatar: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
