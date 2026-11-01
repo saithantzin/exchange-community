@@ -144,6 +144,11 @@ export function AuthProvider({ children }) {
       if (response?.success && response.data) {
         const { user, token } = response.data;
         localStorage.setItem('recirculate_token', token);
+        if (user.role === 'admin') {
+          localStorage.setItem('admin_token', token);
+        } else {
+          localStorage.removeItem('admin_token');
+        }
         const formatted = formatUserFromBackend(user);
         setCurrentUser(formatted);
         setLoading(false);
@@ -159,9 +164,28 @@ export function AuthProvider({ children }) {
     }
 
     // Fallback simulation for offline testing
-    const fallbackUser = loginCredential.toLowerCase().includes('yangon') || loginCredential.toLowerCase().includes('kyaw')
-      ? DEMO_USERS.YGN
-      : DEMO_USERS.MDY;
+    const isMockAdmin = loginCredential.toLowerCase().includes('admin');
+    let fallbackUser;
+    if (isMockAdmin) {
+      fallbackUser = {
+        id: 999,
+        name: 'System Administrator',
+        username: 'admin',
+        email: loginCredential,
+        phone: '09999999999',
+        role: 'admin',
+        city: 'Mandalay Region',
+        cityCode: 'MDY',
+        rating: 5.0,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+      };
+      localStorage.setItem('admin_token', 'mock_admin_token');
+    } else {
+      fallbackUser = loginCredential.toLowerCase().includes('yangon') || loginCredential.toLowerCase().includes('kyaw')
+        ? DEMO_USERS.YGN
+        : DEMO_USERS.MDY;
+      localStorage.removeItem('admin_token');
+    }
 
     setCurrentUser(fallbackUser);
     setLoading(false);

@@ -28,7 +28,14 @@ export default function LoginPage() {
       const res = await login(email, password);
       setLoading(false);
       if (res.success) {
-        navigate(destination, { replace: true });
+        if (res.user?.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          const target = (destination === '/login' || destination === '/admin/login' || destination.startsWith('/admin'))
+            ? '/dashboard'
+            : destination;
+          navigate(target, { replace: true });
+        }
       } else {
         setError(res.message || 'Invalid credentials. Please verify your email.');
       }

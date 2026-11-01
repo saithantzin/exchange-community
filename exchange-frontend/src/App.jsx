@@ -26,7 +26,6 @@ import ProfileSettingsPage from './pages/member/ProfileSettingsPage';
 import NotificationsPage from './pages/member/NotificationsPage';
 
 // Admin Pages
-import AdminLogin from './pages/admin/AdminLogin';
 import Dashboard from './pages/admin/Dashboard';
 import Members from './pages/admin/Members';
 import Categories from './pages/admin/Categories';
@@ -47,7 +46,7 @@ export default function App() {
   if (isAdminPath) {
     return (
       <Routes>
-        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin" element={<AdminRouteGuard />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />

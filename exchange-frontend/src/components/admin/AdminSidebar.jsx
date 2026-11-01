@@ -22,7 +22,9 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, mobileOpen, 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
-    navigate('/admin/login');
+    localStorage.removeItem('recirculate_token');
+    localStorage.removeItem('recirculate_user');
+    navigate('/login');
   };
 
   const menuItems = [

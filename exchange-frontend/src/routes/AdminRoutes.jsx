@@ -1,13 +1,18 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
+import { useAuth } from '../context/AuthContext';
 
 export function AdminRouteGuard() {
-  const token = localStorage.getItem('admin_token');
+  const { currentUser } = useAuth();
+  const location = useLocation();
 
-  // If no token exists, redirect to the admin login portal
-  if (!token) {
-    return <Navigate to="/admin/login" replace />;
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('recirculate_token');
+  const isAdmin = currentUser?.role === 'admin' || Boolean(localStorage.getItem('admin_token'));
+
+  // If no admin session exists, redirect to the unified login page
+  if (!token || !isAdmin) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <AdminLayout />;
