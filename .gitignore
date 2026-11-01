@@ -1,24 +1,39 @@
-# Logs
-logs
+# Root .gitignore for Exchange Community (Frontend + Backend)
+
+# Node
+exchange-frontend/node_modules/
+exchange-frontend/dist/
+exchange-frontend/dist-ssr/
+exchange-frontend/*.local
+**/node_modules/
+**/dist/
+
+# PHP / Composer / Laravel
+exchange-backend/vendor/
+exchange-backend/.env
+exchange-backend/.env.backup
+exchange-backend/.env.production
+exchange-backend/storage/*.key
+exchange-backend/storage/pail/
+exchange-backend/storage/framework/cache/data/*
+exchange-backend/storage/framework/sessions/*
+exchange-backend/storage/framework/views/*
+exchange-backend/storage/logs/*
+exchange-backend/public/storage
+exchange-backend/public/hot
+exchange-backend/public/build
+**/vendor/
+
+# Environment files
+.env
+*.env
+
+# Logs and databases
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+logs/
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# IDE / OS
+.vscode/
+.idea/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
