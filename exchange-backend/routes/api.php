@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Dynamic Item Management
     Route::post('/items', [ItemController::class, 'store']);
+    Route::post('/items/upload-image', [ItemController::class, 'uploadImage']);
     Route::put('/items/{id}', [ItemController::class, 'update']);
     Route::delete('/items/{id}', [ItemController::class, 'destroy']);
     Route::get('/my-items', [ItemController::class, 'myItems']);

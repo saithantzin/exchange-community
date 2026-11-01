@@ -47,6 +47,20 @@ export const itemService = {
   async getMyItems() {
     const response = await api.get('/my-items');
     return response.data;
+  },
+
+  /**
+   * (Auth) Upload an item image file.
+   */
+  async uploadImage(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/items/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
   }
 };
 

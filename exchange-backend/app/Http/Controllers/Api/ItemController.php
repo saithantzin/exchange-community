@@ -214,6 +214,32 @@ class ItemController extends Controller
     }
 
     /**
+     * Upload an item image file.
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation failed', 422, $validator->errors());
+        }
+
+        try {
+            $path = $request->file('image')->store('items', 'public');
+            $url = asset('storage/' . $path);
+
+            return $this->successResponse([
+                'path' => $path,
+                'url' => $url,
+            ], 'Image uploaded successfully', 201);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to upload image: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Get authenticated User's active items.
      */
     public function myItems(Request $request): JsonResponse

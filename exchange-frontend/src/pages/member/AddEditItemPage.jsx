@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
 import { CATEGORIES } from '../../data/mockData';
+import categoryService from '../../services/categoryService';
+import itemService from '../../services/itemService';
 
 export default function AddEditItemPage() {
   const { id } = useParams();
@@ -13,31 +15,49 @@ export default function AddEditItemPage() {
 
   const existingItem = isEditMode ? myItems.find(i => String(i.id) === String(id)) : null;
 
+  const [categoriesList, setCategoriesList] = useState(CATEGORIES);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('furniture');
+  const [category, setCategory] = useState(1);
   const [condition, setCondition] = useState('Like New');
   const [defects, setDefects] = useState('');
-  const [city, setCity] = useState(currentUser?.cityCode || 'MDY');
+  const [city, setCity] = useState(currentUser?.city || 'Mandalay');
   const [allowIntercity, setAllowIntercity] = useState(true);
   const [exchangePreference, setExchangePreference] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [images, setImages] = useState([
     'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80'
   ]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Load dynamic categories from backend API
+  useEffect(() => {
+    categoryService.getCategories()
+      .then(res => {
+        if (res?.success && res.data?.length > 0) {
+          setCategoriesList(res.data);
+          if (!isEditMode) {
+            setCategory(res.data[0].id);
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback to static mock categories
+      });
+  }, [isEditMode]);
+
   useEffect(() => {
     if (isEditMode && existingItem) {
       setTitle(existingItem.title);
-      setCategory(existingItem.category);
-      setCondition(existingItem.condition);
+      setCategory(existingItem.categoryId || existingItem.category || 1);
+      setCondition(existingItem.condition || 'Like New');
       setDefects(existingItem.defects || '');
-      setCity(existingItem.cityCode || 'MDY');
+      setCity(existingItem.city || 'Mandalay');
       setAllowIntercity(existingItem.allowIntercity ?? true);
-      setExchangePreference(existingItem.exchangePreference.replace('Looking for: ', ''));
-      setDescription(existingItem.description);
+      setExchangePreference((existingItem.exchangePreference || '').replace('Looking for: ', ''));
+      setDescription(existingItem.description || '');
       setImages(existingItem.images || [existingItem.image]);
     }
   }, [isEditMode, existingItem]);
@@ -49,11 +69,33 @@ export default function AddEditItemPage() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const res = await itemService.uploadImage(file);
+      if (res?.success && res.data?.url) {
+        setImages(prev => [...prev, res.data.url]);
+      } else {
+        setError('Failed to upload image to server');
+      }
+    } catch (err) {
+      console.warn('Image upload error:', err);
+      // Fallback: create object URL for local display
+      const localUrl = URL.createObjectURL(file);
+      setImages(prev => [...prev, localUrl]);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleRemoveImage = (index) => {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -68,38 +110,33 @@ export default function AddEditItemPage() {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      const conditionColor = condition === 'New' ? '#2C5B7C' : condition === 'Like New' ? '#87571B' : '#3E6347';
-      const conditionBg = condition === 'New' ? '#E8F1F7' : condition === 'Like New' ? '#F9F1E2' : '#EAF2EC';
-      const catObj = CATEGORIES.find(c => c.id === category);
+    const catObj = categoriesList.find(c => String(c.id) === String(category));
 
-      const itemPayload = {
-        title,
-        category,
-        categoryName: catObj ? catObj.name : 'General',
-        condition,
-        conditionColor,
-        conditionBg,
-        defects: defects || 'No cosmetic flaws reported by owner.',
-        city: city,
-        cityCode: city.substring(0, 3).toUpperCase(),
-        exchangePreference: `Looking for: ${exchangePreference}`,
-        description,
-        shippingOption: allowIntercity ? `${city} in-person or express courier to other cities` : `${city} in-person meetup only`,
-        allowIntercity,
-        images,
-        image: images[0]
-      };
+    const itemPayload = {
+      title,
+      category,
+      categoryId: catObj?.id || category,
+      categoryName: catObj ? catObj.name : 'General',
+      condition,
+      defects: defects || 'No cosmetic flaws reported by owner.',
+      city: city,
+      cityCode: city.substring(0, 3).toUpperCase(),
+      exchangePreference: `Looking for: ${exchangePreference}`,
+      description,
+      shippingOption: allowIntercity ? `${city} in-person or express courier to other cities` : `${city} in-person meetup only`,
+      allowIntercity,
+      images,
+      image: images[0]
+    };
 
-      if (isEditMode) {
-        updateItem(existingItem.id, itemPayload);
-      } else {
-        addItem(itemPayload);
-      }
+    if (isEditMode) {
+      await updateItem(existingItem.id, itemPayload);
+    } else {
+      await addItem(itemPayload);
+    }
 
-      setSubmitting(false);
-      navigate('/my-items');
-    }, 400);
+    setSubmitting(false);
+    navigate('/my-items');
   };
 
   return (
@@ -163,7 +200,7 @@ export default function AddEditItemPage() {
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                     >
-                      {CATEGORIES.map(c => (
+                      {categoriesList.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
@@ -260,25 +297,43 @@ export default function AddEditItemPage() {
 
                   {/* Photos Section (Multiple photos support) */}
                   <div className="col-12">
-                    <label className="form-label fw-semibold small text-dark">
-                      Item Photos (Actual Daylight Photos Required) <span className="text-danger">*</span>
+                    <label className="form-label fw-semibold small text-dark d-flex justify-content-between align-items-center">
+                      <span>Item Photos (Actual Daylight Photos Required) <span className="text-danger">*</span></span>
+                      {uploadingImage && <span className="text-primary small"><i className="spinner-border spinner-border-sm me-1"></i> Uploading photo...</span>}
                     </label>
                     
-                    <div className="input-group mb-2">
-                      <input
-                        type="url"
-                        className="form-control"
-                        placeholder="Paste image URL (e.g. https://...)"
-                        value={imageUrl}
-                        onChange={(e) => setImageUrl(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddImageUrl}
-                        className="btn btn-outline-secondary"
-                      >
-                        <i className="bi bi-plus-lg"></i> Add Photo
-                      </button>
+                    <div className="row g-2 mb-2">
+                      <div className="col-md-7">
+                        <div className="input-group">
+                          <input
+                            type="url"
+                            className="form-control"
+                            placeholder="Paste image URL (e.g. https://...)"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddImageUrl}
+                            className="btn btn-outline-secondary"
+                          >
+                            <i className="bi bi-plus-lg"></i> Add URL
+                          </button>
+                        </div>
+                      </div>
+                      <div className="col-md-5">
+                        <label className="btn btn-outline-dark w-100 d-flex align-items-center justify-content-center gap-2 cursor-pointer mb-0">
+                          <i className="bi bi-cloud-arrow-up-fill"></i>
+                          <span>{uploadingImage ? 'Uploading...' : 'Upload File from Device'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="d-none"
+                            disabled={uploadingImage}
+                          />
+                        </label>
+                      </div>
                     </div>
 
                     {/* Previews Grid */}

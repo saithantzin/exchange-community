@@ -78,6 +78,8 @@ function formatUserFromBackend(backendUser) {
     username: backendUser.username,
     email: backendUser.email,
     phone: backendUser.phone || '',
+    state_region_id: backendUser.state_region_id,
+    township_id: backendUser.township_id,
     city: cityDisplay,
     cityCode: cityDisplay.toLowerCase().includes('mandalay') ? 'MDY' : 'YGN',
     role: backendUser.role || 'user',
@@ -253,11 +255,43 @@ export function AuthProvider({ children }) {
     setCurrentUser(city === 'YGN' ? DEMO_USERS.YGN : DEMO_USERS.MDY);
   };
 
-  const updateProfile = (updatedFields) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      ...updatedFields
-    }));
+  const updateProfile = async (updatedFields) => {
+    try {
+      const payload = {
+        name: updatedFields.name,
+        phone: updatedFields.phone,
+        bio: updatedFields.bio,
+        state_region_id: updatedFields.state_region_id,
+        township_id: updatedFields.township_id
+      };
+
+      if (updatedFields.communicationContacts) {
+        payload.communication_contacts = [];
+        const c = updatedFields.communicationContacts;
+        if (c.telegram) payload.communication_contacts.push({ platform: 'Telegram', contact_value: c.telegram, is_preferred: c.preferredMethod === 'telegram' });
+        if (c.viber) payload.communication_contacts.push({ platform: 'Viber', contact_value: c.viber, is_preferred: c.preferredMethod === 'viber' });
+        if (c.facebook) payload.communication_contacts.push({ platform: 'Facebook Messenger', contact_value: c.facebook, is_preferred: c.preferredMethod === 'facebook' });
+        if (c.alternative) payload.communication_contacts.push({ platform: 'Alternative', contact_value: c.alternative, is_preferred: c.preferredMethod === 'alternative' });
+      }
+
+      const res = await authService.updateProfile(payload);
+      if (res?.success && res.data) {
+        const formatted = formatUserFromBackend(res.data);
+        setCurrentUser(formatted);
+        localStorage.setItem('recirculate_user', JSON.stringify(formatted));
+        return { success: true, user: formatted };
+      }
+    } catch (err) {
+      console.warn('API profile update failed, using local update:', err);
+    }
+
+    // Local fallback update
+    setCurrentUser(prev => {
+      const updated = { ...prev, ...updatedFields };
+      localStorage.setItem('recirculate_user', JSON.stringify(updated));
+      return updated;
+    });
+    return { success: true };
   };
 
   return (

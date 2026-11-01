@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import authService from '../../services/authService';
 
 export default function ProfileSettingsPage() {
   const { currentUser, updateProfile } = useAuth();
 
   const [name, setName] = useState(currentUser?.name || '');
-  const [city, setCity] = useState(currentUser?.city || 'Mandalay (MDY)');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+
+  // Myanmar State & Township Data
+  const [locations, setLocations] = useState([]);
+  const [selectedRegionId, setSelectedRegionId] = useState(currentUser?.state_region_id || 1);
+  const [selectedTownshipId, setSelectedTownshipId] = useState(currentUser?.township_id || 1);
 
   // Communication Contact Information State (Requirement 1)
   const [telegram, setTelegram] = useState(currentUser?.communicationContacts?.telegram || '');
@@ -23,15 +28,57 @@ export default function ProfileSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [toastMessage, setToastMessage] = useState(null);
+  const [toastType, setToastType] = useState('success');
+  const [saving, setSaving] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
-  const handleSaveProfile = (e) => {
+  // Load Myanmar Locations dynamically from backend API
+  useEffect(() => {
+    authService.getLocations()
+      .then(res => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          setLocations(res.data);
+          if (!currentUser?.state_region_id) {
+            setSelectedRegionId(res.data[0].id);
+            if (res.data[0].townships?.length > 0) {
+              setSelectedTownshipId(res.data[0].townships[0].id);
+            }
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load dynamic locations:', err));
+  }, [currentUser?.state_region_id]);
+
+  const handleRegionChange = (regionId) => {
+    setSelectedRegionId(regionId);
+    const region = locations.find(r => r.id === Number(regionId));
+    if (region && region.townships?.length > 0) {
+      setSelectedTownshipId(region.townships[0].id);
+    } else {
+      setSelectedTownshipId('');
+    }
+  };
+
+  const currentRegion = locations.find(r => r.id === Number(selectedRegionId));
+  const availableTownships = currentRegion?.townships || [];
+
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    updateProfile({
+    setSaving(true);
+
+    const townshipObj = availableTownships.find(t => t.id === Number(selectedTownshipId));
+    const townshipName = townshipObj?.name || 'Central';
+    const regionName = currentRegion?.name || 'Mandalay Region';
+    const cityDisplay = `${townshipName}, ${regionName}`;
+
+    await updateProfile({
       name,
-      city,
-      cityCode: city.includes('YGN') ? 'YGN' : 'MDY',
-      bio,
       phone,
+      bio,
+      city: cityDisplay,
+      cityCode: regionName.toLowerCase().includes('yangon') ? 'YGN' : 'MDY',
+      state_region_id: Number(selectedRegionId),
+      township_id: Number(selectedTownshipId),
       communicationContacts: {
         telegram,
         viber,
@@ -40,25 +87,52 @@ export default function ProfileSettingsPage() {
         preferredMethod
       }
     });
+
+    setSaving(false);
+    setToastType('success');
     setToastMessage('Profile and communication contact settings updated successfully!');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleSavePassword = (e) => {
+  const handleSavePassword = async (e) => {
     e.preventDefault();
     if (!currentPassword || !newPassword) {
-      alert('Please fill out password fields.');
+      setToastType('error');
+      setToastMessage('Please fill out all password fields.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert('New passwords do not match.');
+      setToastType('error');
+      setToastMessage('New passwords do not match.');
       return;
     }
-    setToastMessage('Password updated successfully.');
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setTimeout(() => setToastMessage(null), 4000);
+
+    setSavingPassword(true);
+    try {
+      const res = await authService.changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirmPassword
+      });
+
+      if (res?.success) {
+        setToastType('success');
+        setToastMessage('Password updated successfully in database.');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setToastType('error');
+        setToastMessage(res?.message || 'Failed to update password.');
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Current password incorrect or validation failed.';
+      setToastType('error');
+      setToastMessage(msg);
+    } finally {
+      setSavingPassword(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   return (
@@ -158,14 +232,32 @@ export default function ProfileSettingsPage() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label small fw-semibold">Primary City Hub</label>
+                    <label className="form-label small fw-semibold">State / Region (Myanmar)</label>
                     <select
                       className="form-select"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
+                      value={selectedRegionId}
+                      onChange={(e) => handleRegionChange(e.target.value)}
                     >
-                      <option value="Mandalay (MDY)">Mandalay (MDY)</option>
-                      <option value="Yangon (YGN)">Yangon (YGN)</option>
+                      {locations.map((region) => (
+                        <option key={region.id} value={region.id}>
+                          {region.name} ({region.type || 'Region'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-md-6">
+                    <label className="form-label small fw-semibold">Township / City</label>
+                    <select
+                      className="form-select"
+                      value={selectedTownshipId}
+                      onChange={(e) => setSelectedTownshipId(e.target.value)}
+                    >
+                      {availableTownships.map((township) => (
+                        <option key={township.id} value={township.id}>
+                          {township.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -304,8 +396,8 @@ export default function ProfileSettingsPage() {
                 </div>
 
                 <div className="mt-4 pt-2 border-top text-end">
-                  <button type="submit" className="btn-nordic-primary px-4">
-                    Save Profile Changes
+                  <button type="submit" disabled={saving} className="btn-nordic-primary px-4">
+                    {saving ? 'Saving...' : 'Save Profile Changes'}
                   </button>
                 </div>
               </form>
@@ -349,8 +441,8 @@ export default function ProfileSettingsPage() {
                 </div>
 
                 <div className="mt-4 pt-2 border-top text-end">
-                  <button type="submit" className="btn btn-outline-dark px-4">
-                    Update Password
+                  <button type="submit" disabled={savingPassword} className="btn btn-outline-dark px-4">
+                    {savingPassword ? 'Updating...' : 'Update Password'}
                   </button>
                 </div>
               </form>

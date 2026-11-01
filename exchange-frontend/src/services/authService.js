@@ -50,6 +50,30 @@ export const authService = {
   async getLocations() {
     const response = await api.get('/locations');
     return response.data;
+  },
+
+  /**
+   * Get authenticated user full profile with location and contacts.
+   */
+  async getProfile() {
+    const response = await api.get('/profile');
+    return response.data;
+  },
+
+  /**
+   * Update profile details and communication contacts.
+   */
+  async updateProfile(profileData) {
+    const response = await api.put('/profile', profileData);
+    return response.data;
+  },
+
+  /**
+   * Update / Change password.
+   */
+  async changePassword(passwordData) {
+    const response = await api.put('/profile/password', passwordData);
+    return response.data;
   }
 };
 
