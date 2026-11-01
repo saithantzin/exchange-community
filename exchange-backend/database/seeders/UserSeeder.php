@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -10,17 +11,31 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Admin User
-        $adminId = DB::table('users')->insertGetId([
-            'name' => 'Platform Administrator',
-            'username' => 'admin',
-            'email' => 'admin@exchange.mm',
-            'password' => Hash::make('password123'),
-            'role' => 'admin',
-            'account_status' => 'Active',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // 1. Primary Admin User
+        User::updateOrCreate(
+            ['email' => 'admin@exchange.com'],
+            [
+                'name' => 'Platform Administrator',
+                'username' => 'admin',
+                'password' => Hash::make('admin123'),
+                'role' => 'admin',
+                'account_status' => 'Active',
+                'rating' => 5.0,
+            ]
+        );
+
+        // Secondary Admin User
+        User::updateOrCreate(
+            ['email' => 'admin@exchange.mm'],
+            [
+                'name' => 'Platform Administrator (MM)',
+                'username' => 'admin_mm',
+                'password' => Hash::make('admin123'),
+                'role' => 'admin',
+                'account_status' => 'Active',
+                'rating' => 5.0,
+            ]
+        );
 
         // Find location IDs
         $mdyTownship = DB::table('townships')->where('name', 'Chanayethazan')->first();
