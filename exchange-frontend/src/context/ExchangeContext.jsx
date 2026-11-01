@@ -97,10 +97,11 @@ export function ExchangeProvider({ children }) {
     try {
       const payload = {
         title: itemData.title,
-        category_id: itemData.categoryId || 1,
+        category_id: itemData.categoryId || itemData.category || 1,
         description: itemData.description,
         condition: itemData.condition || 'Like New',
         looking_for: itemData.exchangePreference || '',
+        township_id: itemData.township_id || currentUser?.township_id || null,
         images: itemData.images?.length > 0 ? itemData.images : [itemData.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80']
       };
 
@@ -112,7 +113,7 @@ export function ExchangeProvider({ children }) {
         return formatted;
       }
     } catch (e) {
-      console.warn('Backend item creation failed, using client simulation:', e);
+      console.warn('Backend item creation failed, using client simulation:', e.response?.data || e.message);
     }
 
     const newItem = {

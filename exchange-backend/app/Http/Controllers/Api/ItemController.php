@@ -96,13 +96,12 @@ class ItemController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'required',
             'description' => 'required|string',
-            'condition' => 'required|string|in:Brand New,Like New,Lightly Used,Well Used',
+            'condition' => 'required|string',
             'looking_for' => 'nullable|string|max:255',
-            'township_id' => 'nullable|exists:townships,id',
+            'township_id' => 'nullable',
             'images' => 'required|array|min:1',
-            'images.*' => 'required|string', // URL string
         ]);
 
         if ($validator->fails()) {
@@ -111,13 +110,28 @@ class ItemController extends Controller
 
         $user = $request->user();
 
+        // Dynamically resolve category ID
+        $categoryId = $request->category_id;
+        if (!is_numeric($categoryId) || !\App\Models\Category::where('id', $categoryId)->exists()) {
+            $cat = \App\Models\Category::where('name', 'like', "%{$categoryId}%")
+                ->orWhere('slug', \Illuminate\Support\Str::slug($categoryId))
+                ->first();
+            $categoryId = $cat ? $cat->id : (\App\Models\Category::first()->id ?? 1);
+        }
+
+        // Dynamically resolve township ID
+        $townshipId = $request->township_id ?: ($user->township_id ?? null);
+        if ($townshipId && (!is_numeric($townshipId) || !\App\Models\Township::where('id', $townshipId)->exists())) {
+            $townshipId = \App\Models\Township::first()->id ?? null;
+        }
+
         try {
             DB::beginTransaction();
 
             $item = Item::create([
                 'user_id' => $user->id,
-                'category_id' => $request->category_id,
-                'township_id' => $request->township_id ?: $user->township_id,
+                'category_id' => $categoryId,
+                'township_id' => $townshipId,
                 'title' => $request->title,
                 'description' => $request->description,
                 'condition' => $request->condition,
@@ -126,6 +140,16 @@ class ItemController extends Controller
             ]);
 
             foreach ($request->images as $index => $imageUrl) {
+                // If Base64 image data URI, save as actual file in storage
+                if (is_string($imageUrl) && preg_match('/^data:image\/(\w+);base64,/', $imageUrl, $type)) {
+                    $data = substr($imageUrl, strpos($imageUrl, ',') + 1);
+                    $ext = strtolower($type[1]);
+                    $data = base64_decode($data);
+                    $filename = 'items/' . \Illuminate\Support\Str::random(40) . '.' . $ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                    $imageUrl = asset('storage/' . $filename);
+                }
+
                 ItemImage::create([
                     'item_id' => $item->id,
                     'image_url' => $imageUrl,
