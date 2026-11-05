@@ -1,13 +1,50 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
-import { SMART_MATCHES_DATA } from '../../data/mockData';
+import itemService from '../../services/itemService';
 
 export default function MemberDashboardPage() {
   const { currentUser } = useAuth();
   const { myItems, requests, exchanges, notifications } = useExchange();
   const navigate = useNavigate();
+
+  const [smartMatches, setSmartMatches] = useState([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [userHasItems, setUserHasItems] = useState(true);
+
+  // Dynamic Rule-Based Smart Matches from Laravel Backend
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingMatches(true);
+    itemService.getSmartMatches()
+      .then((res) => {
+        if (!isMounted) return;
+        if (res?.success && Array.isArray(res.data)) {
+          setSmartMatches(res.data);
+          if (res.user_has_items !== undefined) {
+            setUserHasItems(Boolean(res.user_has_items));
+          } else {
+            setUserHasItems(Boolean((myItems && myItems.length > 0) || res.data.length > 0));
+          }
+        } else {
+          setSmartMatches([]);
+          setUserHasItems(Boolean(myItems && myItems.length > 0));
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load smart matches in dashboard:', err?.message);
+        if (isMounted) {
+          setSmartMatches([]);
+          setUserHasItems(Boolean(myItems && myItems.length > 0));
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoadingMatches(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [currentUser?.id, myItems?.length]);
 
   const incomingRequests = requests.filter(r => r.type === 'incoming');
   const outgoingRequests = requests.filter(r => r.type === 'outgoing');
@@ -214,51 +251,89 @@ export default function MemberDashboardPage() {
                 </Link>
               </div>
 
-              <div className="row g-3">
-                {SMART_MATCHES_DATA.slice(0, 2).map(m => (
-                  <div key={m.id} className="col-12 col-md-6">
-                    <div className="p-3.5 rounded border bg-light h-100 d-flex flex-column">
-                      <div className="d-flex justify-content-between align-items-center mb-2">
-                        <span className="badge bg-success text-white px-2.5 py-1" style={{ fontSize: '0.76rem' }}>
-                          {m.matchScore}% Compatibility
-                        </span>
-                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {m.intercity ? 'Intercity (MDY ⇄ YGN)' : 'Local MDY'}
-                        </span>
-                      </div>
+              {loadingMatches ? (
+                <div className="py-4 text-center">
+                  <div className="spinner-border spinner-border-sm text-brown mb-2" style={{ color: 'var(--primary-brown)' }} role="status">
+                    <span className="visually-hidden">Loading recommendations...</span>
+                  </div>
+                  <p className="text-muted small mb-0">Calculating real compatibility scores from active listings...</p>
+                </div>
+              ) : (!userHasItems || (myItems && myItems.length === 0)) ? (
+                <div className="p-4 text-center rounded bg-light border" style={{ borderColor: 'var(--border-light)' }}>
+                  <i className="bi bi-magic fs-2 text-muted mb-2 d-block"></i>
+                  <h6 className="fw-bold mb-1 text-dark">No Active Listings Yet</h6>
+                  <p className="text-muted small mb-3">
+                    List an item to get rule-based smart swap recommendations matched to your desired trade wishlist.
+                  </p>
+                  <Link to="/add-item" className="btn-nordic-primary py-1.5 px-3.5 text-center d-inline-flex" style={{ fontSize: '0.82rem' }}>
+                    <i className="bi bi-plus-circle me-1.5"></i> List Your First Item
+                  </Link>
+                </div>
+              ) : smartMatches.length === 0 ? (
+                <div className="p-4 text-center rounded bg-light border" style={{ borderColor: 'var(--border-light)' }}>
+                  <i className="bi bi-search fs-2 text-muted mb-2 d-block"></i>
+                  <h6 className="fw-bold mb-1 text-dark">No Compatible Matches Found Yet</h6>
+                  <p className="text-muted small mb-0">
+                    We couldn't find an exact match for your current listings right now. Check back as new community members list items!
+                  </p>
+                </div>
+              ) : (
+                <div className="row g-3">
+                  {smartMatches.slice(0, 2).map((m) => {
+                    const partnerImg = m.offeredItem?.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80';
+                    const cityStr = m.offeredItem?.city || 'Local MDY';
+                    const shortCity = cityStr.includes('Mandalay') ? 'Local MDY' : (cityStr.includes('Yangon') ? 'Yangon (YGN)' : cityStr.split(',')[0]);
 
-                      <div className="d-flex align-items-center gap-2.5 mb-2.5">
-                        <img
-                          src={m.offeredItem.image}
-                          alt={m.offeredItem.title}
-                          className="rounded flex-shrink-0"
-                          style={{ width: '48px', height: '48px', objectFit: 'cover' }}
-                        />
-                        <div className="flex-grow-1 text-truncate">
-                          <h6 className="mb-0 fw-bold text-dark text-truncate" style={{ fontSize: '0.90rem' }}>
-                            {m.offeredItem.title}
-                          </h6>
-                          <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                            By {m.offeredItem.ownerName} • {m.offeredItem.city}
-                          </span>
+                    return (
+                      <div key={m.id} className="col-12 col-md-6">
+                        <div className="p-3.5 rounded border bg-light h-100 d-flex flex-column">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <span className="badge bg-success text-white px-2.5 py-1" style={{ fontSize: '0.76rem' }}>
+                              {m.matchScore}% Compatibility
+                            </span>
+                            <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                              {m.intercity ? 'Intercity (MDY ⇄ YGN)' : shortCity}
+                            </span>
+                          </div>
+
+                          <div className="d-flex align-items-center gap-2.5 mb-2.5">
+                            <img
+                              src={partnerImg}
+                              alt={m.offeredItem?.title || 'Partner Item'}
+                              className="rounded flex-shrink-0"
+                              style={{ width: '48px', height: '48px', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80';
+                              }}
+                            />
+                            <div className="flex-grow-1 text-truncate">
+                              <h6 className="mb-0 fw-bold text-dark text-truncate" style={{ fontSize: '0.90rem' }}>
+                                {m.offeredItem?.title}
+                              </h6>
+                              <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                                By {m.offeredItem?.ownerName || 'Community Member'} • {m.offeredItem?.city || 'Myanmar'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-muted mb-3 flex-grow-1" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                            {m.matchReason}
+                          </p>
+
+                          <Link
+                            to={`/item/${m.offeredItem?.id || ''}`}
+                            className="btn-nordic-outline w-100 py-1.5 text-center justify-content-center"
+                            style={{ fontSize: '0.82rem' }}
+                          >
+                            Inspect Match
+                          </Link>
                         </div>
                       </div>
-
-                      <p className="text-muted mb-3 flex-grow-1" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
-                        {m.matchReason}
-                      </p>
-
-                      <Link
-                        to="/matches"
-                        className="btn-nordic-outline w-100 py-1.5 text-center justify-content-center"
-                        style={{ fontSize: '0.82rem' }}
-                      >
-                        Inspect Match
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Quick Listing Table */}
