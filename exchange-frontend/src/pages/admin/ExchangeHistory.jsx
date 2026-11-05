@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   History,
@@ -14,23 +14,55 @@ import {
 import DataTable from '../../components/admin/DataTable';
 import StatusBadge from '../../components/admin/StatusBadge';
 import { ADMIN_EXCHANGES } from '../../data/adminMockData';
+import api from '../../services/api';
 
 export default function ExchangeHistory() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [exchangeList, setExchangeList] = useState(ADMIN_EXCHANGES);
+  const [loading, setLoading] = useState(false);
 
-  // Completed & closed records
-  const historicalExchanges = ADMIN_EXCHANGES.filter((e) =>
-    e.status === 'Completed' || e.status === 'Resolved' || e.isCompleted || statusFilter !== 'All'
-  );
+  useEffect(() => {
+    const fetchAdminExchanges = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/admin/exchanges');
+        if (res.data?.success && res.data.data?.data && res.data.data.data.length > 0) {
+          const formatted = res.data.data.data.map(item => ({
+            id: item.exchange_code || ('EXC-' + item.id),
+            status: item.status,
+            handoverMethod: item.exchange_type || 'Intercity Courier Delivery',
+            initiatedDate: item.created_at ? item.created_at.slice(0, 10) : '2026-10-08',
+            completedDate: item.completed_at ? item.completed_at.slice(0, 10) : (item.status === 'Completed' ? '2026-11-01' : null),
+            partyA: {
+              name: item.requester?.name || 'Requester',
+              city: item.requester?.township?.name || 'Mandalay',
+              itemTitle: item.offered_item?.title || 'Offered Item'
+            },
+            partyB: {
+              name: item.owner?.name || 'Owner',
+              city: item.owner?.township?.name || 'Yangon',
+              itemTitle: item.requested_item?.title || 'Requested Item'
+            }
+          }));
+          setExchangeList(formatted);
+        }
+      } catch (err) {
+        console.warn('Could not load real admin exchanges:', err?.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAdminExchanges();
+  }, []);
 
-  const filteredData = ADMIN_EXCHANGES.filter((e) => {
+  const filteredData = exchangeList.filter((e) => {
     const matchesSearch =
-      e.id.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyA.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyB.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyA.itemTitle.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyB.itemTitle.toLowerCase().includes(search.toLowerCase());
+      (e.id || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.partyA?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.partyB?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.partyA?.itemTitle || '').toLowerCase().includes(search.toLowerCase()) ||
+      (e.partyB?.itemTitle || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter === 'All' || e.status === statusFilter;
     return matchesSearch && matchesStatus;

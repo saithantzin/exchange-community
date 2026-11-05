@@ -5,6 +5,7 @@ import { useExchange } from '../../context/ExchangeContext';
 import { CATEGORIES } from '../../data/mockData';
 import categoryService from '../../services/categoryService';
 import itemService from '../../services/itemService';
+import authService from '../../services/authService';
 
 export default function AddEditItemPage() {
   const { id } = useParams();
@@ -16,6 +17,9 @@ export default function AddEditItemPage() {
   const existingItem = isEditMode ? myItems.find(i => String(i.id) === String(id)) : null;
 
   const [categoriesList, setCategoriesList] = useState(CATEGORIES);
+  const [locations, setLocations] = useState([]);
+  const [selectedRegionId, setSelectedRegionId] = useState('');
+  const [selectedTownshipId, setSelectedTownshipId] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(1);
   const [condition, setCondition] = useState('Like New');
@@ -29,8 +33,9 @@ export default function AddEditItemPage() {
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loadingItem, setLoadingItem] = useState(isEditMode);
 
-  // Load dynamic categories from backend API
+  // Load dynamic categories & locations from backend API
   useEffect(() => {
     categoryService.getCategories()
       .then(res => {
@@ -41,24 +46,111 @@ export default function AddEditItemPage() {
           }
         }
       })
-      .catch(() => {
-        // Fallback to static mock categories
-      });
-  }, [isEditMode]);
+      .catch(() => {});
 
+    authService.getLocations()
+      .then(res => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          setLocations(res.data);
+          if (!isEditMode) {
+            // Default to user's region/township or Mandalay
+            const defaultReg = res.data.find(r => r.name.toLowerCase().includes('mandalay')) || res.data[0];
+            setSelectedRegionId(defaultReg.id);
+            if (defaultReg.townships?.length > 0) {
+              const defaultTownship = defaultReg.townships.find(t => t.id === currentUser?.township_id) || defaultReg.townships[0];
+              setSelectedTownshipId(defaultTownship.id);
+              setCity(`${defaultTownship.name}, ${defaultReg.name}`);
+            }
+          }
+        }
+      })
+      .catch(err => console.warn('Could not load locations:', err));
+  }, [isEditMode, currentUser?.township_id]);
+
+  // When in Edit Mode, fetch real item data from database
   useEffect(() => {
-    if (isEditMode && existingItem) {
-      setTitle(existingItem.title);
-      setCategory(existingItem.categoryId || existingItem.category || 1);
-      setCondition(existingItem.condition || 'Like New');
-      setDefects(existingItem.defects || '');
-      setCity(existingItem.city || 'Mandalay');
-      setAllowIntercity(existingItem.allowIntercity ?? true);
-      setExchangePreference((existingItem.exchangePreference || '').replace('Looking for: ', ''));
-      setDescription(existingItem.description || '');
-      setImages(existingItem.images || [existingItem.image]);
+    if (isEditMode && id) {
+      setLoadingItem(true);
+      itemService.getItemById(id)
+        .then(res => {
+          if (res?.success && res.data) {
+            const itemData = res.data;
+            setTitle(itemData.title || '');
+            setCategory(itemData.category_id || 1);
+            setCondition(itemData.condition || 'Like New');
+            setDefects(itemData.defects || '');
+            setExchangePreference((itemData.looking_for || '').replace(/^Looking for:\s*/i, ''));
+            setDescription(itemData.description || '');
+
+            const itemImages = itemData.images?.map(i => i.image_url) || [];
+            if (itemImages.length > 0) {
+              setImages(itemImages);
+            }
+
+            if (itemData.township_id) {
+              setSelectedTownshipId(itemData.township_id);
+              if (itemData.township?.state_region_id) {
+                setSelectedRegionId(itemData.township.state_region_id);
+              }
+              const tName = itemData.township?.name || '';
+              const rName = itemData.township?.state_region?.name || '';
+              if (tName && rName) {
+                setCity(`${tName}, ${rName}`);
+              }
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('Backend item retrieve error, using local fallback:', err);
+          if (existingItem) {
+            setTitle(existingItem.title || '');
+            setCategory(existingItem.categoryId || existingItem.category || 1);
+            setCondition(existingItem.condition || 'Like New');
+            setDefects(existingItem.defects || '');
+            setCity(existingItem.city || 'Mandalay');
+            setAllowIntercity(existingItem.allowIntercity ?? true);
+            setExchangePreference((existingItem.exchangePreference || '').replace(/^Looking for:\s*/i, ''));
+            setDescription(existingItem.description || '');
+            setImages(existingItem.images || [existingItem.image]);
+          }
+        })
+        .finally(() => setLoadingItem(false));
     }
-  }, [isEditMode, existingItem]);
+  }, [isEditMode, id]);
+
+  // Automatically sync region if township is loaded before locations
+  useEffect(() => {
+    if (locations.length > 0 && selectedTownshipId && !selectedRegionId) {
+      for (const reg of locations) {
+        const found = reg.townships?.find(t => t.id === Number(selectedTownshipId));
+        if (found) {
+          setSelectedRegionId(reg.id);
+          setCity(`${found.name}, ${reg.name}`);
+          break;
+        }
+      }
+    }
+  }, [locations, selectedTownshipId, selectedRegionId]);
+
+  const handleRegionChange = (regionId) => {
+    setSelectedRegionId(regionId);
+    const reg = locations.find(r => r.id === Number(regionId));
+    if (reg && reg.townships?.length > 0) {
+      setSelectedTownshipId(reg.townships[0].id);
+      setCity(`${reg.townships[0].name}, ${reg.name}`);
+    } else {
+      setSelectedTownshipId('');
+    }
+  };
+
+  const handleTownshipChange = (townshipId) => {
+    setSelectedTownshipId(townshipId);
+    const reg = locations.find(r => r.id === Number(selectedRegionId));
+    const t = reg?.townships?.find(item => item.id === Number(townshipId));
+    if (t && reg) {
+      setCity(`${t.name}, ${reg.name}`);
+    }
+  };
 
   const handleAddImageUrl = () => {
     if (imageUrl.trim()) {
@@ -135,7 +227,8 @@ export default function AddEditItemPage() {
       condition,
       defects: defects || 'No cosmetic flaws reported by owner.',
       city: city,
-      cityCode: city.substring(0, 3).toUpperCase(),
+      cityCode: city.toLowerCase().includes('mandalay') ? 'MDY' : 'YGN',
+      township_id: selectedTownshipId || null,
       exchangePreference: `Looking for: ${exchangePreference}`,
       description,
       shippingOption: allowIntercity ? `${city} in-person or express courier to other cities` : `${city} in-person meetup only`,
@@ -145,7 +238,7 @@ export default function AddEditItemPage() {
     };
 
     if (isEditMode) {
-      await updateItem(existingItem.id, itemPayload);
+      await updateItem(id, itemPayload);
     } else {
       await addItem(itemPayload);
     }
@@ -270,30 +363,39 @@ export default function AddEditItemPage() {
                     <small className="text-muted">Our smart matching engine uses this field to recommend mutual trades.</small>
                   </div>
 
-                  {/* City & Handover Method */}
+                  {/* Myanmar State / Region & Township */}
                   <div className="col-md-6">
                     <label className="form-label fw-semibold small text-dark">
-                      Item Location City <span className="text-danger">*</span>
+                      State / Region <span className="text-danger">*</span>
                     </label>
                     <select
                       className="form-select"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
+                      value={selectedRegionId}
+                      onChange={(e) => handleRegionChange(e.target.value)}
                     >
-                      <option value="Yangon">Yangon</option>
-                      <option value="Mandalay">Mandalay</option>
-                      <option value="Naypyitaw">Naypyitaw</option>
-                      <option value="Taunggyi">Taunggyi</option>
-                      <option value="Mawlamyine">Mawlamyine</option>
-                      <option value="Bago">Bago</option>
-                      <option value="Monywa">Monywa</option>
-                      <option value="Pathein">Pathein</option>
-                      <option value="Pyin Oo Lwin">Pyin Oo Lwin</option>
+                      {locations.map(reg => (
+                        <option key={reg.id} value={reg.id}>{reg.name}</option>
+                      ))}
                     </select>
                   </div>
 
-                  <div className="col-md-6 d-flex align-items-center">
-                    <div className="form-check pt-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold small text-dark">
+                      Township / City Area <span className="text-danger">*</span>
+                    </label>
+                    <select
+                      className="form-select"
+                      value={selectedTownshipId}
+                      onChange={(e) => handleTownshipChange(e.target.value)}
+                    >
+                      {(locations.find(r => r.id === Number(selectedRegionId))?.townships || []).map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-12 d-flex align-items-center">
+                    <div className="form-check pt-1">
                       <input
                         className="form-check-input"
                         type="checkbox"

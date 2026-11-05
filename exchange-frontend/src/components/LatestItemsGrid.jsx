@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useExchange } from '../context/ExchangeContext';
 
 export default function LatestItemsGrid({
   items,
@@ -9,6 +10,7 @@ export default function LatestItemsGrid({
   onOpenItemDetail,
   onResetFilters
 }) {
+  const { categories } = useExchange();
   const [favorites, setFavorites] = useState({});
 
   const toggleFavorite = (id, e) => {
@@ -16,14 +18,21 @@ export default function LatestItemsGrid({
     setFavorites(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Dynamic category tabs derived from database categories
   const categoryTabs = [
     { id: 'all', label: 'All Items' },
-    { id: 'furniture', label: 'Furniture' },
-    { id: 'electronics', label: 'Electronics' },
-    { id: 'household', label: 'Household' },
-    { id: 'books', label: 'Books' },
-    { id: 'clothing', label: 'Clothing' },
-    { id: 'other', label: 'Other' },
+    ...(categories && categories.length > 0
+      ? categories.slice(0, 7).map(c => ({
+          id: c.slug || c.id,
+          label: c.name
+        }))
+      : [
+          { id: 'electronics', label: 'Electronics & Gadgets' },
+          { id: 'sports-outdoors', label: 'Sports & Outdoors' },
+          { id: 'fashion-accessories', label: 'Fashion & Accessories' },
+          { id: 'home-furniture', label: 'Home & Furniture' },
+          { id: 'books', label: 'Books' }
+        ])
   ];
 
   return (
@@ -36,7 +45,7 @@ export default function LatestItemsGrid({
             <h2 className="section-main-title mb-0">Latest Available Items for Exchange</h2>
           </div>
           <div className="d-flex align-items-center gap-4 mt-2 mt-md-0">
-            <span className="text-muted d-none d-md-inline" style={{ fontSize: '0.88rem' }}>
+            <span className="text-muted d-none d-md-inline fw-medium" style={{ fontSize: '0.88rem' }}>
               Showing {items.length} verified listings
             </span>
             <button
@@ -49,10 +58,10 @@ export default function LatestItemsGrid({
           </div>
         </div>
 
-        {/* Category Filter Pills Bar */}
+        {/* Category Filter Pills Bar (Dynamic from Database) */}
         <div className="d-flex flex-wrap gap-2 gap-md-3 mb-5 pb-2 overflow-auto">
           {categoryTabs.map(tab => {
-            const isActive = selectedCategory === tab.id;
+            const isActive = String(selectedCategory) === String(tab.id);
             return (
               <button
                 key={tab.id}
@@ -101,9 +110,9 @@ export default function LatestItemsGrid({
             >
               <i className="bi bi-search fs-3"></i>
             </div>
-            <h4 className="font-serif fw-bold mb-3">No Matching Items Found</h4>
+            <h4 className="font-serif fw-bold mb-3 text-dark">No Matching Items Found</h4>
             <p className="text-muted mx-auto mb-4" style={{ maxWidth: '440px', fontSize: '0.92rem', lineHeight: 1.7 }}>
-              We couldn't find available items matching your specific keyword, condition, or city filter. Try clearing filters or listing a swap request.
+              We couldn't find available items matching this specific category. Try resetting category filters or browse all items.
             </p>
             <button onClick={onResetFilters} className="btn-nordic-primary">
               <i className="bi bi-arrow-counterclockwise me-1"></i> Reset All Filters
@@ -116,11 +125,23 @@ export default function LatestItemsGrid({
           <div className="row g-4 g-lg-5">
             {items.map(item => (
               <div key={item.id} className="col-12 col-sm-6 col-lg-3">
-                <div className="nordic-item-card h-100">
+                <div
+                  className="nordic-item-card h-100"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onOpenItemDetail(item)}
+                >
                   
                   {/* Item Image with Badges */}
                   <div className="card-img-container">
-                    <img src={item.image} alt={item.title} loading="lazy" />
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80';
+                      }}
+                    />
                     
                     {/* Condition Badge */}
                     <span
@@ -156,22 +177,32 @@ export default function LatestItemsGrid({
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <span
                         className="text-uppercase fw-semibold"
-                        style={{ fontSize: '0.72rem', letterSpacing: '0.12em', color: 'var(--text-muted)' }}
+                        style={{ fontSize: '0.72rem', letterSpacing: '0.10em', color: 'var(--text-muted)' }}
                       >
-                        {item.categoryName}
+                        {item.categoryName || item.category}
                       </span>
-                      <span className="text-muted" style={{ fontSize: '0.74rem' }}>
+                      {/* At least 3 days relative time, then real calendar date */}
+                      <span className="text-muted fw-medium" style={{ fontSize: '0.75rem' }}>
                         {item.createdAt}
                       </span>
                     </div>
 
                     <h5
-                      className="card-title fw-semibold text-dark mb-3 text-truncate-2"
+                      className="card-title fw-semibold text-dark mb-2 text-truncate-2"
                       style={{ fontSize: '1.02rem', lineHeight: 1.5, minHeight: '3em' }}
                       title={item.title}
                     >
                       {item.title}
                     </h5>
+
+                    {/* Defect Disclosure Badge if item has defects */}
+                    {item.defects && (
+                      <div className="mb-2.5">
+                        <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style={{ fontSize: '0.70rem' }}>
+                          <i className="bi bi-exclamation-circle me-1"></i> Defect Disclosed
+                        </span>
+                      </div>
+                    )}
 
                     {/* Exchange Preference Pill Box */}
                     <div
@@ -190,7 +221,7 @@ export default function LatestItemsGrid({
                         </span>
                       </div>
                       <span className="text-muted text-truncate d-block" title={item.exchangePreference}>
-                        {item.exchangePreference.replace('Looking for: ', '')}
+                        {item.exchangePreference ? item.exchangePreference.replace('Looking for: ', '') : 'Open to offers'}
                       </span>
                     </div>
 
@@ -198,18 +229,25 @@ export default function LatestItemsGrid({
                     <div className="d-flex align-items-center justify-content-between pt-3 border-top" style={{ borderColor: 'var(--border-light)' }}>
                       <div className="d-flex align-items-center gap-2">
                         <img
-                          src={item.owner.avatar}
-                          alt={item.owner.name}
-                          className="rounded-circle"
+                          src={item.owner?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80'}
+                          alt={item.owner?.name || 'Owner'}
+                          className="rounded-circle border"
                           style={{ width: '28px', height: '28px', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80';
+                          }}
                         />
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {item.owner.name.split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner.rating}★</span>
+                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner?.rating || 5.0}★</span>
                         </span>
                       </div>
 
                       <button
-                        onClick={() => onOpenItemDetail(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenItemDetail(item);
+                        }}
                         className="btn btn-sm btn-nordic-outline py-1 px-3"
                         style={{ fontSize: '0.82rem' }}
                       >
@@ -218,13 +256,11 @@ export default function LatestItemsGrid({
                     </div>
 
                   </div>
-
                 </div>
               </div>
             ))}
           </div>
         )}
-
       </div>
     </section>
   );

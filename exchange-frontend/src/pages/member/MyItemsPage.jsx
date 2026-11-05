@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
 
 export default function MyItemsPage() {
   const { currentUser } = useAuth();
-  const { myItems, deleteItem } = useExchange();
+  const { myItems, deleteItem, refreshMyItems } = useExchange();
   const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  useEffect(() => {
+    if (typeof refreshMyItems === 'function') {
+      refreshMyItems();
+    }
+  }, []);
 
   const filteredItems = myItems.filter(item => {
     if (statusFilter === 'all') return true;
@@ -100,7 +106,16 @@ export default function MyItemsPage() {
                 
                 {/* Photo & Badges */}
                 <div className="position-relative" style={{ height: '200px', backgroundColor: '#F3ECE5' }}>
-                  <img src={item.image} alt={item.title} className="w-100 h-100" style={{ objectFit: 'cover' }} />
+                  <img
+                    src={item.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80'}
+                    alt={item.title}
+                    className="w-100 h-100"
+                    style={{ objectFit: 'contain' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80';
+                    }}
+                  />
                   
                   <span
                     className="badge-condition"
@@ -110,7 +125,7 @@ export default function MyItemsPage() {
                   </span>
 
                   <span className="badge-city">
-                    {item.city} {item.allowIntercity ? '⇄ Intercity' : ''}
+                    {item.city || 'Mandalay'} {item.allowIntercity ? '⇄ Intercity' : ''}
                   </span>
                 </div>
 
@@ -118,7 +133,7 @@ export default function MyItemsPage() {
                 <div className="p-4 d-flex flex-column flex-grow-1">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <span className="text-uppercase text-muted fw-semibold" style={{ fontSize: '0.74rem', letterSpacing: '0.1em' }}>
-                      {item.categoryName}
+                      {item.categoryName || item.category || 'General'}
                     </span>
                     <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1" style={{ fontSize: '0.74rem' }}>
                       {item.status || 'Available'}

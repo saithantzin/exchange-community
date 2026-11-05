@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
@@ -6,11 +6,17 @@ import MemberProfileModal from '../../components/MemberProfileModal';
 
 export default function ExchangeRequestsPage() {
   const { currentUser, updateProfile } = useAuth();
-  const { requests, acceptRequest, rejectRequest, cancelRequest, exchanges } = useExchange();
+  const { requests, requestsLoading, refreshRequests, acceptRequest, rejectRequest, cancelRequest, exchanges } = useExchange();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('incoming');
   const [toastMessage, setToastMessage] = useState(null);
+  const [actionInProgress, setActionInProgress] = useState(null);
+
+  // Load fresh requests on mount
+  useEffect(() => {
+    refreshRequests();
+  }, []);
 
   // Member Profile Modal state
   const [selectedMember, setSelectedMember] = useState(null);
@@ -27,7 +33,7 @@ export default function ExchangeRequestsPage() {
   const incomingList = requests.filter(r => r.type === 'incoming');
   const outgoingList = requests.filter(r => r.type === 'outgoing');
 
-  const handleAccept = (id) => {
+  const handleAccept = async (id) => {
     const req = requests.find(r => r.id === id);
     const isIntercity = Boolean(
       req?.isIntercity ||
@@ -48,21 +54,26 @@ export default function ExchangeRequestsPage() {
       return;
     }
 
-    const createdExchange = acceptRequest(id);
-    const exchangeId = createdExchange?.id;
+    setActionInProgress(id);
+    try {
+      const createdExchange = await acceptRequest(id);
+      const exchangeId = createdExchange?.id;
 
-    if (isIntercity && exchangeId) {
-      navigate(`/exchange/${exchangeId}`);
-    } else {
-      setToastMessage({
-        title: 'Exchange Proposal Accepted!',
-        text: 'Exchange accepted! In-person trade workflow created.',
-        exchangeId: exchangeId
-      });
+      if (isIntercity && exchangeId) {
+        navigate(`/exchange/${exchangeId}`);
+      } else {
+        setToastMessage({
+          title: 'Exchange Proposal Accepted!',
+          text: 'Exchange accepted! In-person trade workflow created.',
+          exchangeId: exchangeId
+        });
+      }
+    } finally {
+      setActionInProgress(null);
     }
   };
 
-  const handleSaveContactAndAccept = (e) => {
+  const handleSaveContactAndAccept = async (e) => {
     e.preventDefault();
     if (!modalTelegram.trim() && !modalViber.trim() && !modalFacebook.trim()) {
       alert('Please provide at least one communication contact method (Telegram, Viber, or Facebook).');
@@ -80,30 +91,45 @@ export default function ExchangeRequestsPage() {
 
     setShowContactPromptModal(false);
     if (pendingAcceptId) {
-      const createdExchange = acceptRequest(pendingAcceptId);
-      setPendingAcceptId(null);
-      if (createdExchange?.id) {
-        navigate(`/exchange/${createdExchange.id}`);
+      setActionInProgress(pendingAcceptId);
+      try {
+        const createdExchange = await acceptRequest(pendingAcceptId);
+        setPendingAcceptId(null);
+        if (createdExchange?.id) {
+          navigate(`/exchange/${createdExchange.id}`);
+        }
+      } finally {
+        setActionInProgress(null);
       }
     }
   };
 
-  const handleReject = (id) => {
-    rejectRequest(id);
-    setToastMessage({
-      title: 'Proposal Declined',
-      text: 'You declined this exchange offer.'
-    });
-    setTimeout(() => setToastMessage(null), 3000);
+  const handleReject = async (id) => {
+    setActionInProgress(id);
+    try {
+      await rejectRequest(id);
+      setToastMessage({
+        title: 'Proposal Declined',
+        text: 'You declined this exchange offer.'
+      });
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setActionInProgress(null);
+    }
   };
 
-  const handleCancel = (id) => {
-    cancelRequest(id);
-    setToastMessage({
-      title: 'Proposal Cancelled',
-      text: 'Your outgoing proposal has been withdrawn.'
-    });
-    setTimeout(() => setToastMessage(null), 3000);
+  const handleCancel = async (id) => {
+    setActionInProgress(id);
+    try {
+      await cancelRequest(id);
+      setToastMessage({
+        title: 'Proposal Cancelled',
+        text: 'Your outgoing proposal has been withdrawn.'
+      });
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setActionInProgress(null);
+    }
   };
 
   return (
@@ -156,28 +182,50 @@ export default function ExchangeRequestsPage() {
           </div>
         </div>
 
-        {/* Navigation Tabs (Incoming vs Outgoing) */}
-        <div className="d-flex border-bottom mb-4" style={{ borderColor: 'var(--border-light)' }}>
+        {/* Navigation Tabs (Incoming vs Outgoing) & Refresh Button */}
+        <div className="d-flex justify-content-between align-items-center border-bottom mb-4" style={{ borderColor: 'var(--border-light)' }}>
+          <div className="d-flex">
+            <button
+              onClick={() => setActiveTab('incoming')}
+              className={`btn btn-link text-decoration-none py-2 px-4 fw-semibold ${activeTab === 'incoming' ? 'text-dark border-bottom border-3' : 'text-muted'}`}
+              style={{ borderColor: activeTab === 'incoming' ? 'var(--primary-brown) !important' : 'transparent', fontSize: '0.94rem' }}
+            >
+              <i className="bi bi-inbox-fill me-2"></i>
+              Incoming Requests ({incomingList.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('outgoing')}
+              className={`btn btn-link text-decoration-none py-2 px-4 fw-semibold ${activeTab === 'outgoing' ? 'text-dark border-bottom border-3' : 'text-muted'}`}
+              style={{ borderColor: activeTab === 'outgoing' ? 'var(--primary-brown) !important' : 'transparent', fontSize: '0.94rem' }}
+            >
+              <i className="bi bi-send-check-fill me-2"></i>
+              Outgoing Requests ({outgoingList.length})
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab('incoming')}
-            className={`btn btn-link text-decoration-none py-2 px-4 fw-semibold ${activeTab === 'incoming' ? 'text-dark border-bottom border-3' : 'text-muted'}`}
-            style={{ borderColor: activeTab === 'incoming' ? 'var(--primary-brown) !important' : 'transparent', fontSize: '0.94rem' }}
+            onClick={() => refreshRequests()}
+            disabled={requestsLoading}
+            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1.5 px-3 py-1.5 rounded-pill mb-1"
+            style={{ fontSize: '0.80rem' }}
+            title="Refresh proposals from database"
           >
-            <i className="bi bi-inbox-fill me-2"></i>
-            Incoming Requests ({incomingList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('outgoing')}
-            className={`btn btn-link text-decoration-none py-2 px-4 fw-semibold ${activeTab === 'outgoing' ? 'text-dark border-bottom border-3' : 'text-muted'}`}
-            style={{ borderColor: activeTab === 'outgoing' ? 'var(--primary-brown) !important' : 'transparent', fontSize: '0.94rem' }}
-          >
-            <i className="bi bi-send-check-fill me-2"></i>
-            Outgoing Requests ({outgoingList.length})
+            <i className={`bi bi-arrow-clockwise ${requestsLoading ? 'spin' : ''}`}></i>
+            <span>{requestsLoading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
         </div>
 
+        {/* Global Loading Spinner for initial load */}
+        {requestsLoading && requests.length === 0 && (
+          <div className="bg-white p-5 rounded-3 border text-center shadow-sm my-4" style={{ borderColor: 'var(--border-light)' }}>
+            <div className="spinner-border mb-3" style={{ color: 'var(--primary-brown)' }} role="status"></div>
+            <h5 className="font-serif fw-bold mb-1">Loading Exchange Proposals...</h5>
+            <p className="text-muted small mb-0">Retrieving real-time trade offers from MySQL database.</p>
+          </div>
+        )}
+
         {/* Incoming Tab Content */}
-        {activeTab === 'incoming' && (
+        {activeTab === 'incoming' && (!requestsLoading || requests.length > 0) && (
           <div>
             {incomingList.length === 0 ? (
               <div className="bg-white p-5 rounded-3 border text-center shadow-sm" style={{ borderColor: 'var(--border-light)' }}>
@@ -277,15 +325,25 @@ export default function ExchangeRequestsPage() {
                               
                               <div className="col-5">
                                 <span className="text-muted d-block mb-1" style={{ fontSize: '0.74rem' }}>They Offer:</span>
-                                <div className="d-flex align-items-center gap-2 mt-1">
+                                <div className="d-flex align-items-start gap-2 mt-1">
                                   <img src={req.offeredItem.image} alt="" className="rounded flex-shrink-0" style={{ width: '48px', height: '48px', objectFit: 'cover' }} />
                                   <div className="min-w-0">
                                     <span className="fw-semibold small text-truncate d-block text-dark" style={{ fontSize: '0.86rem' }}>
                                       {req.offeredItem.title}
                                     </span>
-                                    <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                    <span className="text-muted d-block" style={{ fontSize: '0.72rem' }}>
                                       {req.offeredItem.city || req.requester.city}
                                     </span>
+                                    {req.offeredItem.id && (
+                                      <Link
+                                        to={`/item/${req.offeredItem.id}`}
+                                        className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill mt-1 d-inline-flex align-items-center gap-1 text-decoration-none"
+                                        style={{ fontSize: '0.70rem' }}
+                                        title="View offered item details"
+                                      >
+                                        <i className="bi bi-eye"></i> View Item Detail
+                                      </Link>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -296,20 +354,92 @@ export default function ExchangeRequestsPage() {
 
                               <div className="col-5">
                                 <span className="text-muted d-block mb-1" style={{ fontSize: '0.74rem' }}>For Your Item:</span>
-                                <div className="d-flex align-items-center gap-2 mt-1">
+                                <div className="d-flex align-items-start gap-2 mt-1">
                                   <img src={req.requestedItem.image} alt="" className="rounded flex-shrink-0" style={{ width: '48px', height: '48px', objectFit: 'cover' }} />
                                   <div className="min-w-0">
                                     <span className="fw-semibold small text-truncate d-block text-dark" style={{ fontSize: '0.86rem' }}>
                                       {req.requestedItem.title}
                                     </span>
-                                    <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                    <span className="text-muted d-block" style={{ fontSize: '0.72rem' }}>
                                       {req.requestedItem.city}
                                     </span>
+                                    {req.requestedItem.id && (
+                                      <Link
+                                        to={`/item/${req.requestedItem.id}`}
+                                        className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill mt-1 d-inline-flex align-items-center gap-1 text-decoration-none"
+                                        style={{ fontSize: '0.70rem' }}
+                                        title="View your item details"
+                                      >
+                                        <i className="bi bi-eye"></i> View Item Detail
+                                      </Link>
+                                    )}
                                   </div>
                                 </div>
                               </div>
 
                             </div>
+
+                            {/* Accepted Partner Verification Details (City, Ph, Acc) */}
+                            {Boolean(
+                              ['accepted', 'in transit', 'deposit review', 'shipping', 'in escrow', 'completed', 'deposit payment'].includes(String(req.status || '').trim().toLowerCase())
+                            ) && (
+                              <div className="mt-3 p-2.5 rounded-3 border bg-white shadow-xs" style={{ borderColor: '#BEE3F8' }}>
+                                <div className="d-flex align-items-center justify-content-between mb-1.5 pb-1 border-bottom" style={{ borderColor: '#E2E8F0' }}>
+                                  <span className="fw-bold text-dark d-flex align-items-center gap-1" style={{ fontSize: '0.78rem' }}>
+                                    <i className="bi bi-patch-check-fill text-success"></i>
+                                    <span>Requester Details: <strong>{req.requester?.name || 'Exchange Partner'}</strong></span>
+                                  </span>
+                                  <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill" style={{ fontSize: '0.68rem' }}>
+                                    ✓ Accepted Contact
+                                  </span>
+                                </div>
+                                <div className="row g-2 text-muted" style={{ fontSize: '0.76rem' }}>
+                                  <div className="col-12 col-sm-4">
+                                    <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Location / City:</span>
+                                    <strong className="text-dark d-flex align-items-center gap-1 mt-0.5">
+                                      <i className="bi bi-geo-alt-fill text-danger"></i>
+                                      {req.requester?.city || req.offeredItem?.city || 'Myanmar'}
+                                    </strong>
+                                  </div>
+                                  <div className="col-12 col-sm-4">
+                                    <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Phone (ph):</span>
+                                    <strong className="text-dark d-flex align-items-center gap-1 mt-0.5">
+                                      <i className="bi bi-telephone-fill text-success"></i>
+                                      {req.requester?.phone ? (
+                                        <a href={`tel:${req.requester.phone}`} className="text-decoration-none text-dark hover-underline">
+                                          {req.requester.phone}
+                                        </a>
+                                      ) : (
+                                        <span className="text-muted italic">Not provided</span>
+                                      )}
+                                    </strong>
+                                  </div>
+                                  <div className="col-12 col-sm-4">
+                                    <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Social Accounts (acc):</span>
+                                    <div className="d-flex flex-wrap gap-1 mt-0.5">
+                                      {req.requester?.telegram ? (
+                                        <a href={`https://t.me/${req.requester.telegram.replace('@', '')}`} target="_blank" rel="noreferrer" className="badge bg-info-subtle text-info-emphasis border text-decoration-none">
+                                          ✈ {req.requester.telegram}
+                                        </a>
+                                      ) : null}
+                                      {req.requester?.viber || req.requester?.phone ? (
+                                        <a href={`viber://chat?number=${req.requester.viber || req.requester.phone}`} target="_blank" rel="noreferrer" className="badge text-decoration-none" style={{ backgroundColor: '#EDE5FC', color: '#5B41C7', border: '1px solid #DDD1BF' }}>
+                                          💬 {req.requester.viber || req.requester.phone}
+                                        </a>
+                                      ) : null}
+                                      {req.requester?.facebook ? (
+                                        <a href={req.requester.facebook.startsWith('http') ? req.requester.facebook : `https://${req.requester.facebook}`} target="_blank" rel="noreferrer" className="badge bg-primary-subtle text-primary border text-decoration-none">
+                                          👤 Messenger
+                                        </a>
+                                      ) : null}
+                                      {!req.requester?.telegram && !req.requester?.viber && !req.requester?.facebook && !req.requester?.phone && (
+                                        <span className="text-muted italic" style={{ fontSize: '0.72rem' }}>No direct account</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Proposal Message */}
                             {req.message && (
@@ -364,43 +494,49 @@ export default function ExchangeRequestsPage() {
                             </div>
                           )}
 
-                          {req.status === 'Accepted' && (
-                            <div className="d-flex flex-md-column gap-2 justify-content-end">
-                              <span className="text-success small fw-bold d-block">
-                                <i className="bi bi-check2-circle me-1"></i> Exchange Active
-                              </span>
-                              
-                              <button
-                                onClick={() => {
-                                  setSelectedMember(req.requester);
-                                  setSelectedRequest(req);
-                                }}
-                                className="btn btn-sm btn-outline-secondary py-1 px-2.5"
-                                style={{ fontSize: '0.80rem' }}
-                              >
-                                <i className="bi bi-person me-1"></i> View Requester Profile
-                              </button>
+                          {(() => {
+                            const statusLower = String(req.status || '').trim().toLowerCase();
+                            const isAccepted = ['accepted', 'in transit', 'deposit review', 'shipping', 'in escrow', 'completed', 'deposit payment'].includes(statusLower);
+                            if (!isAccepted) return null;
 
-                              {(() => {
-                                const relatedExchange = exchanges.find(e =>
-                                  e.itemB?.title === req.offeredItem?.title ||
-                                  e.itemA?.title === req.requestedItem?.title
-                                );
-                                const targetUrl = relatedExchange ? `/exchange/${relatedExchange.id}` : '/history';
+                            const relatedExchange = exchanges.find(e =>
+                              e.id === req.id ||
+                              e.id === req.exchange_code ||
+                              e.exchangeCode === req.exchange_code ||
+                              (e.itemB?.title && e.itemB.title === req.offeredItem?.title) ||
+                              (e.itemA?.title && e.itemA.title === req.requestedItem?.title)
+                            );
+                            const targetId = relatedExchange ? relatedExchange.id : (req.exchange_code || ('EXC-' + req.id));
 
-                                return (
-                                  <Link
-                                    to={targetUrl}
-                                    className="btn btn-sm btn-primary py-2 px-3 fw-medium text-white text-decoration-none shadow-xs"
-                                    style={{ fontSize: '0.84rem' }}
-                                  >
-                                    <i className="bi bi-truck me-1"></i>
-                                    {isIntercity ? 'Open Courier Tracking' : 'View Exchange Details'}
-                                  </Link>
-                                );
-                              })()}
-                            </div>
-                          )}
+                            return (
+                              <div className="d-flex flex-md-column gap-2 justify-content-end align-items-md-end">
+                                <span className="text-success small fw-bold d-flex align-items-center gap-1.5 justify-content-end">
+                                  <i className="bi bi-check2-circle fs-6"></i> Exchange Active
+                                </span>
+                                
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMember(req.requester);
+                                    setSelectedRequest(req);
+                                  }}
+                                  className="btn btn-sm btn-outline-secondary py-1.5 px-3 rounded-2 bg-white text-dark"
+                                  style={{ fontSize: '0.82rem', borderColor: '#c8bba7' }}
+                                >
+                                  <i className="bi bi-person me-1.5"></i> View Requester Profile
+                                </button>
+
+                                <Link
+                                  to={`/exchange/${targetId}`}
+                                  className="btn btn-sm py-2 px-3 fw-medium text-white text-decoration-none shadow-xs d-inline-flex align-items-center gap-1.5 rounded-2"
+                                  style={{ fontSize: '0.84rem', backgroundColor: '#0d6efd' }}
+                                >
+                                  <i className="bi bi-truck"></i>
+                                  {isIntercity ? 'Open Courier Tracking' : 'View Exchange Details'}
+                                </Link>
+                              </div>
+                            );
+                          })()}
 
                           {req.status === 'Rejected' && (
                             <span className="text-muted small">Proposal Declined</span>
@@ -417,7 +553,7 @@ export default function ExchangeRequestsPage() {
         )}
 
         {/* Outgoing Tab Content */}
-        {activeTab === 'outgoing' && (
+        {activeTab === 'outgoing' && (!requestsLoading || requests.length > 0) && (
           <div>
             {outgoingList.length === 0 ? (
               <div className="bg-white p-5 rounded-3 border text-center shadow-sm" style={{ borderColor: 'var(--border-light)' }}>
@@ -437,40 +573,48 @@ export default function ExchangeRequestsPage() {
                       <div className="col-12 col-md-3">
                         <span className="text-muted d-block small mb-1" style={{ fontSize: '0.78rem' }}>Sent to Member:</span>
                         <div className="d-flex align-items-center gap-2 mb-2">
-                          {req.recipient.avatar && (
+                          {req.recipient?.avatar ? (
                             <img
                               src={req.recipient.avatar}
-                              alt={req.recipient.name}
+                              alt={req.recipient.name || 'Member'}
                               className="rounded-circle border"
                               style={{ width: '40px', height: '40px', objectFit: 'cover' }}
                             />
+                          ) : (
+                            <div className="rounded-circle bg-secondary-subtle d-flex align-items-center justify-content-center border" style={{ width: '40px', height: '40px' }}>
+                              <i className="bi bi-person text-secondary"></i>
+                            </div>
                           )}
                           <div>
                             <h6
                               className="mb-0 fw-bold text-dark cursor-pointer"
                               style={{ fontSize: '0.94rem', cursor: 'pointer' }}
                               onClick={() => {
-                                setSelectedMember(req.recipient);
-                                setSelectedRequest(req);
+                                if (req.recipient) {
+                                  setSelectedMember(req.recipient);
+                                  setSelectedRequest(req);
+                                }
                               }}
                             >
-                              {req.recipient.name}
+                              {req.recipient?.name || 'Community Member'}
                             </h6>
-                            <span className="text-muted small" style={{ fontSize: '0.80rem' }}>{req.recipient.city}</span>
+                            <span className="text-muted small" style={{ fontSize: '0.80rem' }}>{req.recipient?.city || 'Local'}</span>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedMember(req.recipient);
-                            setSelectedRequest(req);
-                          }}
-                          className="btn btn-sm btn-outline-secondary py-1 px-2.5 rounded-pill mb-2 d-inline-flex align-items-center gap-1"
-                          style={{ fontSize: '0.76rem' }}
-                        >
-                          <i className="bi bi-person"></i> View Member Profile
-                        </button>
+                        {req.recipient && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedMember(req.recipient);
+                              setSelectedRequest(req);
+                            }}
+                            className="btn btn-sm btn-outline-secondary py-1 px-2.5 rounded-pill mb-2 d-inline-flex align-items-center gap-1"
+                            style={{ fontSize: '0.76rem' }}
+                          >
+                            <i className="bi bi-person"></i> View Member Profile
+                          </button>
+                        )}
 
                         <div>
                           <span className="badge px-2.5 py-1" style={{ backgroundColor: req.status === 'Pending' ? '#F9F1E2' : '#EAF2EC', color: req.status === 'Pending' ? '#87571B' : '#2E693D', fontSize: '0.76rem' }}>
@@ -484,9 +628,28 @@ export default function ExchangeRequestsPage() {
                           <div className="row g-2 align-items-center">
                             <div className="col-5">
                               <span className="text-muted d-block mb-1" style={{ fontSize: '0.74rem' }}>You Offered:</span>
-                              <div className="d-flex align-items-center gap-2 mt-1">
-                                <img src={req.offeredItem.image} alt="" className="rounded flex-shrink-0" style={{ width: '46px', height: '46px', objectFit: 'cover' }} />
-                                <span className="fw-semibold small text-truncate text-dark" style={{ fontSize: '0.86rem' }}>{req.offeredItem.title}</span>
+                              <div className="d-flex align-items-start gap-2 mt-1">
+                                <img
+                                  src={req.offeredItem?.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80'}
+                                  alt=""
+                                  className="rounded flex-shrink-0"
+                                  style={{ width: '46px', height: '46px', objectFit: 'cover' }}
+                                />
+                                <div className="min-w-0">
+                                  <span className="fw-semibold small text-truncate d-block text-dark" style={{ fontSize: '0.86rem' }}>
+                                    {req.offeredItem?.title || 'Offered Item'}
+                                  </span>
+                                  {req.offeredItem?.id && (
+                                    <Link
+                                      to={`/item/${req.offeredItem.id}`}
+                                      className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill mt-1 d-inline-flex align-items-center gap-1 text-decoration-none"
+                                      style={{ fontSize: '0.70rem' }}
+                                      title="View offered item details"
+                                    >
+                                      <i className="bi bi-eye"></i> View Item Detail
+                                    </Link>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             <div className="col-2 text-center text-muted">
@@ -494,12 +657,93 @@ export default function ExchangeRequestsPage() {
                             </div>
                             <div className="col-5">
                               <span className="text-muted d-block mb-1" style={{ fontSize: '0.74rem' }}>In Return For:</span>
-                              <div className="d-flex align-items-center gap-2 mt-1">
-                                <img src={req.requestedItem.image} alt="" className="rounded flex-shrink-0" style={{ width: '46px', height: '46px', objectFit: 'cover' }} />
-                                <span className="fw-semibold small text-truncate text-dark" style={{ fontSize: '0.86rem' }}>{req.requestedItem.title}</span>
+                              <div className="d-flex align-items-start gap-2 mt-1">
+                                <img
+                                  src={req.requestedItem?.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80'}
+                                  alt=""
+                                  className="rounded flex-shrink-0"
+                                  style={{ width: '46px', height: '46px', objectFit: 'cover' }}
+                                />
+                                <div className="min-w-0">
+                                  <span className="fw-semibold small text-truncate d-block text-dark" style={{ fontSize: '0.86rem' }}>
+                                    {req.requestedItem?.title || 'Requested Item'}
+                                  </span>
+                                  {req.requestedItem?.id && (
+                                    <Link
+                                      to={`/item/${req.requestedItem.id}`}
+                                      className="btn btn-sm btn-outline-secondary py-0.5 px-2 rounded-pill mt-1 d-inline-flex align-items-center gap-1 text-decoration-none"
+                                      style={{ fontSize: '0.70rem' }}
+                                      title="View requested item details"
+                                    >
+                                      <i className="bi bi-eye"></i> View Item Detail
+                                    </Link>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
+
+                          {/* Accepted Partner Verification Details (City, Ph, Acc) */}
+                          {Boolean(
+                            ['accepted', 'in transit', 'deposit review', 'shipping', 'in escrow', 'completed', 'deposit payment'].includes(String(req.status || '').trim().toLowerCase())
+                          ) && (
+                            <div className="mt-3 p-2.5 rounded-3 border bg-white shadow-xs" style={{ borderColor: '#BEE3F8' }}>
+                              <div className="d-flex align-items-center justify-content-between mb-1.5 pb-1 border-bottom" style={{ borderColor: '#E2E8F0' }}>
+                                <span className="fw-bold text-dark d-flex align-items-center gap-1" style={{ fontSize: '0.78rem' }}>
+                                  <i className="bi bi-patch-check-fill text-success"></i>
+                                  <span>Partner Accepted Details: <strong>{req.recipient?.name || 'Exchange Partner'}</strong></span>
+                                </span>
+                                <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill" style={{ fontSize: '0.68rem' }}>
+                                  ✓ Contact Unlocked
+                                </span>
+                              </div>
+                              <div className="row g-2 text-muted" style={{ fontSize: '0.76rem' }}>
+                                <div className="col-12 col-sm-4">
+                                  <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Location / City:</span>
+                                  <strong className="text-dark d-flex align-items-center gap-1 mt-0.5">
+                                    <i className="bi bi-geo-alt-fill text-danger"></i>
+                                    {req.recipient?.city || req.requestedItem?.city || 'Myanmar'}
+                                  </strong>
+                                </div>
+                                <div className="col-12 col-sm-4">
+                                  <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Verified Phone (ph):</span>
+                                  <strong className="text-dark d-flex align-items-center gap-1 mt-0.5">
+                                    <i className="bi bi-telephone-fill text-success"></i>
+                                    {req.recipient?.phone ? (
+                                      <a href={`tel:${req.recipient.phone}`} className="text-decoration-none text-dark hover-underline">
+                                        {req.recipient.phone}
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted italic">Not provided</span>
+                                    )}
+                                  </strong>
+                                </div>
+                                <div className="col-12 col-sm-4">
+                                  <span className="d-block text-secondary" style={{ fontSize: '0.70rem' }}>Social Accounts (acc):</span>
+                                  <div className="d-flex flex-wrap gap-1 mt-0.5">
+                                    {req.recipient?.telegram ? (
+                                      <a href={`https://t.me/${req.recipient.telegram.replace('@', '')}`} target="_blank" rel="noreferrer" className="badge bg-info-subtle text-info-emphasis border text-decoration-none">
+                                        ✈ {req.recipient.telegram}
+                                      </a>
+                                    ) : null}
+                                    {req.recipient?.viber || req.recipient?.phone ? (
+                                      <a href={`viber://chat?number=${req.recipient.viber || req.recipient.phone}`} target="_blank" rel="noreferrer" className="badge text-decoration-none" style={{ backgroundColor: '#EDE5FC', color: '#5B41C7', border: '1px solid #DDD1BF' }}>
+                                        💬 {req.recipient.viber || req.recipient.phone}
+                                      </a>
+                                    ) : null}
+                                    {req.recipient?.facebook ? (
+                                      <a href={req.recipient.facebook.startsWith('http') ? req.recipient.facebook : `https://${req.recipient.facebook}`} target="_blank" rel="noreferrer" className="badge bg-primary-subtle text-primary border text-decoration-none">
+                                        👤 Messenger
+                                      </a>
+                                    ) : null}
+                                    {!req.recipient?.telegram && !req.recipient?.viber && !req.recipient?.facebook && !req.recipient?.phone && (
+                                      <span className="text-muted italic" style={{ fontSize: '0.72rem' }}>No direct account</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -516,6 +760,57 @@ export default function ExchangeRequestsPage() {
                         {req.status === 'Cancelled' && (
                           <span className="text-muted small">Proposal Cancelled</span>
                         )}
+                        {req.status === 'Rejected' && (
+                          <span className="text-danger small fw-semibold">Proposal Declined</span>
+                        )}
+                        {(() => {
+                          const statusLower = String(req.status || '').trim().toLowerCase();
+                          const isAccepted = ['accepted', 'in transit', 'deposit review', 'shipping', 'in escrow', 'completed', 'deposit payment'].includes(statusLower);
+                          if (!isAccepted) return null;
+
+                          const relatedExchange = exchanges.find(e =>
+                            e.id === req.id ||
+                            e.id === req.exchange_code ||
+                            e.exchangeCode === req.exchange_code ||
+                            (e.itemA?.title && e.itemA.title === req.offeredItem?.title) ||
+                            (e.itemB?.title && e.itemB.title === req.requestedItem?.title)
+                          );
+                          const targetId = relatedExchange ? relatedExchange.id : (req.exchange_code || ('EXC-' + req.id));
+                          const isIntercity = Boolean(
+                            req.isIntercity ||
+                            req.handoverMethod?.toLowerCase().includes('courier') ||
+                            req.handoverMethod?.toLowerCase().includes('intercity')
+                          );
+
+                          return (
+                            <div className="d-flex flex-md-column gap-2 justify-content-end align-items-md-end">
+                              <span className="text-success small fw-bold d-flex align-items-center gap-1.5 justify-content-end">
+                                <i className="bi bi-check2-circle fs-6"></i> Exchange Active
+                              </span>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMember(req.recipient || req.requester);
+                                  setSelectedRequest(req);
+                                }}
+                                className="btn btn-sm btn-outline-secondary py-1.5 px-3 rounded-2 bg-white text-dark"
+                                style={{ fontSize: '0.82rem', borderColor: '#c8bba7' }}
+                              >
+                                <i className="bi bi-person me-1.5"></i> View Member Profile
+                              </button>
+
+                              <Link
+                                to={`/exchange/${targetId}`}
+                                className="btn btn-sm py-2 px-3 fw-medium text-white text-decoration-none shadow-xs d-inline-flex align-items-center gap-1.5 rounded-2"
+                                style={{ fontSize: '0.84rem', backgroundColor: '#0d6efd' }}
+                              >
+                                <i className="bi bi-truck"></i>
+                                {isIntercity ? 'Open Courier Tracking' : 'View Exchange Details'}
+                              </Link>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                     </div>

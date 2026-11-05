@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SMART_MATCHES_DATA } from '../data/mockData';
+import itemService from '../services/itemService';
 
 export default function SmartMatchingPreview({
   isLoggedIn,
@@ -8,9 +9,27 @@ export default function SmartMatchingPreview({
   onOpenItemDetail,
   currentUser
 }) {
+  const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
 
-  const filteredMatches = SMART_MATCHES_DATA.filter(match => {
+  useEffect(() => {
+    itemService.getSmartMatches()
+      .then(res => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          setMatches(res.data);
+        } else {
+          setMatches(SMART_MATCHES_DATA);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load smart matches for preview, using fallback:', err);
+        setMatches(SMART_MATCHES_DATA);
+      });
+  }, [currentUser?.id]);
+
+  const displayList = matches.length > 0 ? matches : SMART_MATCHES_DATA;
+
+  const filteredMatches = displayList.filter(match => {
     if (activeTab === 'local') return !match.intercity;
     if (activeTab === 'intercity') return match.intercity;
     return true;
@@ -128,7 +147,7 @@ export default function SmartMatchingPreview({
                   className={`btn px-3 py-2 ${activeTab === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
                   style={{ fontSize: '0.82rem' }}
                 >
-                  All Matches ({SMART_MATCHES_DATA.length})
+                  All Matches ({displayList.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('local')}

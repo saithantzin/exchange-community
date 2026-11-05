@@ -17,6 +17,7 @@ import {
 export default function DataTable({
   columns = [],
   data = [],
+  loading = false,
   searchable = true,
   searchPlaceholder = 'Search records...',
   pageSize = 10,
@@ -131,7 +132,16 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-[#EBE2D8]">
-            {paginatedData.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="py-12 text-center text-[#8C7A6B] text-xs">
+                  <div className="flex flex-col items-center justify-center gap-2.5">
+                    <div className="w-6 h-6 border-2 border-[#5C4033] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="font-medium text-[#5C4033]">Loading catalog taxonomy from database...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : paginatedData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="py-8 text-center text-[#8C7A6B] text-xs">
                   {emptyMessage}

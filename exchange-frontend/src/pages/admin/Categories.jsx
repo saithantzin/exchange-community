@@ -24,31 +24,40 @@ import { ADMIN_CATEGORIES } from '../../data/adminMockData';
 import categoryService from '../../services/categoryService';
 
 export default function Categories() {
-  const [categories, setCategories] = useState(ADMIN_CATEGORIES);
+  const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState('');
+
+  const loadCategories = async () => {
+    setLoading(true);
+    try {
+      const res = await categoryService.getCategories();
+      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        const dynamicCats = res.data.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          depositAmount: Number(c.deposit_amount) || 100000,
+          itemCount: c.items_count || 0,
+          description: c.description || (c.name + ' items for community swaps'),
+          icon: c.icon || 'Grid',
+          status: c.is_active ? 'Active' : 'Inactive'
+        }));
+        setCategories(dynamicCats);
+      }
+    } catch (err) {
+      console.warn('Could not load categories from backend, using fallback:', err?.message);
+      setCategories(ADMIN_CATEGORIES);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch dynamic categories from Laravel API on mount
   useEffect(() => {
-    categoryService.getCategories()
-      .then((res) => {
-        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-          const dynamicCats = res.data.map((c) => ({
-            id: c.id,
-            name: c.name,
-            slug: c.slug,
-            depositAmount: Number(c.deposit_amount) || 100000,
-            itemCount: c.items_count || 0,
-            description: c.name + ' items for community swaps',
-            icon: c.icon || 'Grid',
-            status: c.is_active ? 'Active' : 'Inactive'
-          }));
-          setCategories(dynamicCats);
-        }
-      })
-      .catch((err) => {
-        console.warn('Could not load categories from backend, using fallback:', err?.message);
-      });
+    loadCategories();
   }, []);
 
   // Add / Edit Modal state
@@ -57,6 +66,7 @@ export default function Categories() {
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
+    depositAmount: 50000,
     description: '',
     icon: 'Grid',
     status: 'Active'
@@ -82,6 +92,7 @@ export default function Categories() {
 
   const handleOpenAddModal = () => {
     setEditingCategory(null);
+    setServerError('');
     setFormData({
       name: '',
       slug: '',
@@ -96,6 +107,7 @@ export default function Categories() {
 
   const handleOpenEditModal = (cat) => {
     setEditingCategory(cat);
+    setServerError('');
     setFormData({
       name: cat.name,
       slug: cat.slug || cat.id,
@@ -120,52 +132,41 @@ export default function Categories() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    if (editingCategory) {
-      // Update existing
-      try {
+    setServerError('');
+    setSubmitting(true);
+
+    try {
+      if (editingCategory) {
+        // Update existing category in backend
         await categoryService.updateCategory(editingCategory.id, {
           name: formData.name,
+          slug: formData.slug,
+          description: formData.description,
           deposit_amount: formData.depositAmount,
           icon: formData.icon,
           is_active: formData.status === 'Active'
         });
-      } catch (err) {
-        console.warn('Backend category update failed, updating locally:', err);
-      }
-
-      setCategories((prev) =>
-        prev.map((c) =>
-          c.id === editingCategory.id
-            ? { ...c, ...formData }
-            : c
-        )
-      );
-    } else {
-      // Create new
-      let newCatId = formData.slug.toLowerCase().replace(/\s+/g, '-');
-      try {
-        const res = await categoryService.createCategory({
+      } else {
+        // Create new category in backend
+        await categoryService.createCategory({
           name: formData.name,
+          slug: formData.slug,
+          description: formData.description,
           deposit_amount: formData.depositAmount,
           icon: formData.icon,
           is_active: formData.status === 'Active'
         });
-        if (res?.success && res.data) {
-          newCatId = res.data.id;
-        }
-      } catch (err) {
-        console.warn('Backend category create failed, saving locally:', err);
       }
 
-      const newCat = {
-        id: newCatId,
-        ...formData,
-        itemCount: 0
-      };
-      setCategories((prev) => [...prev, newCat]);
+      await loadCategories();
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Backend category operation failed:', err);
+      const msg = err.response?.data?.message || err.response?.data?.errors?.name?.[0] || 'Operation failed. Please verify input.';
+      setServerError(msg);
+    } finally {
+      setSubmitting(false);
     }
-
-    setIsModalOpen(false);
   };
 
   const handleDeleteClick = (cat) => {
@@ -179,10 +180,11 @@ export default function Categories() {
     if (!deleteModal.category) return;
     try {
       await categoryService.deleteCategory(deleteModal.category.id);
+      await loadCategories();
     } catch (err) {
       console.warn('Backend category delete failed, removing locally:', err);
+      setCategories((prev) => prev.filter((c) => c.id !== deleteModal.category.id));
     }
-    setCategories((prev) => prev.filter((c) => c.id !== deleteModal.category.id));
     setDeleteModal({ isOpen: false, category: null });
   };
 
@@ -294,154 +296,171 @@ export default function Categories() {
       <DataTable
         columns={columns}
         data={filteredCategories}
+        loading={loading}
         searchPlaceholder="Search categories by name or description..."
         pageSize={8}
       />
 
       {/* Add / Edit Category Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#EBE2D8] shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EBE2D8]">
+        <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col border border-[#EBE2D8] shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#EBE2D8] shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-[#DDD1BF]/40 text-[#5C4033]">
-                  <FolderTree className="w-5 h-5" />
+                <div className="p-1.5 rounded-lg bg-[#DDD1BF]/40 text-[#5C4033]">
+                  <FolderTree className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-base text-[#2C1D15]">
+                <h3 className="font-bold text-sm text-[#2C1D15]">
                   {editingCategory ? 'Edit Category' : 'Create New Category'}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded-lg"
+                className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded-lg transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitForm} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      name,
-                      slug: editingCategory ? prev.slug : name.toLowerCase().replace(/\s+/g, '-')
-                    }));
-                  }}
-                  placeholder="e.g. Traditional Textiles"
-                  className="w-full px-3 py-2 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0]"
-                />
-                {formErrors.name && (
-                  <p className="text-[11px] text-rose-600 mt-1">{formErrors.name}</p>
+            {/* Form */}
+            <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1 text-xs">
+                {serverError && (
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                    {serverError}
+                  </div>
                 )}
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                  URL Slug Identifier *
-                </label>
-                <input
-                  type="text"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="e.g. traditional-textiles"
-                  className="w-full px-3 py-2 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0] font-mono"
-                />
-                {formErrors.slug && (
-                  <p className="text-[11px] text-rose-600 mt-1">{formErrors.slug}</p>
-                )}
-              </div>
+                {/* Row 1: Name and Slug */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-[#2C1D15] mb-1">
+                      Category Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        setFormData((prev) => ({
+                          ...prev,
+                          name,
+                          slug: editingCategory ? prev.slug : name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                        }));
+                      }}
+                      placeholder="e.g. Traditional Textiles"
+                      className="w-full px-3 py-1.5 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0]"
+                    />
+                    {formErrors.name && (
+                      <p className="text-[11px] text-rose-600 mt-0.5">{formErrors.name}</p>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                  Fixed Intercity Escrow Deposit (MMK)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="5000"
-                    step="5000"
-                    value={formData.depositAmount || 50000}
-                    onChange={(e) => setFormData({ ...formData, depositAmount: Number(e.target.value) })}
-                    placeholder="e.g. 100000"
-                    className="w-full px-3 py-2 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0] font-mono"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#8C7A6B] font-semibold">
-                    MMK
-                  </span>
+                  <div>
+                    <label className="block font-semibold text-[#2C1D15] mb-1">
+                      URL Slug Identifier *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      placeholder="e.g. traditional-textiles"
+                      className="w-full px-3 py-1.5 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0] font-mono"
+                    />
+                    {formErrors.slug && (
+                      <p className="text-[11px] text-rose-600 mt-0.5">{formErrors.slug}</p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[10px] text-[#8C7A6B] mt-1">
-                  Required deposit when a member offers an item in this category for an intercity exchange. Refunded 100% after dual-sided delivery confirmation.
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows="3"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Brief summary of items classified under this category..."
-                  className="w-full px-3 py-2 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0]"
-                />
-              </div>
+                {/* Row 2: Deposit and Icon */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-[#2C1D15] mb-1">
+                      Escrow Deposit (MMK)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="5000"
+                        step="5000"
+                        value={formData.depositAmount}
+                        onChange={(e) => setFormData({ ...formData, depositAmount: Number(e.target.value) })}
+                        placeholder="50000"
+                        className="w-full px-3 py-1.5 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0] font-mono"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#8C7A6B] font-semibold">
+                        MMK
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-[#2C1D15] mb-1">
+                      Icon Theme
+                    </label>
+                    <select
+                      value={formData.icon}
+                      onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                      className="w-full px-2.5 py-1.5 text-xs border border-[#EBE2D8] rounded-lg bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
+                    >
+                      <option value="Laptop">Laptop / Gadgets</option>
+                      <option value="BookOpen">Books & Reads</option>
+                      <option value="Shirt">Clothing & Fashion</option>
+                      <option value="Coffee">Household & Decor</option>
+                      <option value="Armchair">Furniture</option>
+                      <option value="Grid">Generic / Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 3: Description */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                    Icon Theme
+                  <label className="block font-semibold text-[#2C1D15] mb-1">
+                    Description
                   </label>
-                  <select
-                    value={formData.icon}
-                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                    className="w-full px-2.5 py-2 text-xs border border-[#EBE2D8] rounded-lg bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
-                  >
-                    <option value="Laptop">Laptop / Gadgets</option>
-                    <option value="BookOpen">Books & Reads</option>
-                    <option value="Shirt">Clothing & Fashion</option>
-                    <option value="Coffee">Household & Decor</option>
-                    <option value="Armchair">Furniture</option>
-                    <option value="Grid">Generic / Other</option>
-                  </select>
+                  <textarea
+                    rows="2"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief summary of items classified under this category..."
+                    className="w-full px-3 py-1.5 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5C4033] bg-[#F9F6F0]"
+                  />
                 </div>
 
+                {/* Row 4: Status */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                    Status
+                  <label className="block font-semibold text-[#2C1D15] mb-1">
+                    Publication Status
                   </label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-2.5 py-2 text-xs border border-[#EBE2D8] rounded-lg bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
+                    className="w-full px-2.5 py-1.5 text-xs border border-[#EBE2D8] rounded-lg bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Archived">Archived</option>
+                    <option value="Active">Active (Visible for exchanges)</option>
+                    <option value="Archived">Archived (Hidden)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#EBE2D8]">
+              {/* Fixed Footer */}
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#EBE2D8] bg-[#FDFBF7] shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg border border-[#EBE2D8] text-[#5C4033] hover:bg-[#F9F6F0]"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg border border-[#EBE2D8] text-[#5C4033] hover:bg-[#F9F6F0] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-colors disabled:opacity-50"
                 >
-                  {editingCategory ? 'Save Changes' : 'Create Category'}
+                  {submitting ? 'Saving...' : editingCategory ? 'Save Changes' : 'Create Category'}
                 </button>
               </div>
             </form>

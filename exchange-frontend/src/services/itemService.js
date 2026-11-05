@@ -50,6 +50,14 @@ export const itemService = {
   },
 
   /**
+   * Get dynamic smart matches computed from real database listings.
+   */
+  async getSmartMatches(params = {}) {
+    const response = await api.get('/smart-matches', { params });
+    return response.data;
+  },
+
+  /**
    * (Auth) Upload item image file(s) - supports single or multiple files.
    */
   async uploadImage(fileOrFiles) {

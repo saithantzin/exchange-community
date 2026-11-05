@@ -33,21 +33,29 @@ class CategoryController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100|unique:categories,name',
+            'slug' => 'nullable|string|max:100',
             'deposit_amount' => 'required|numeric|min:0',
+            'description' => 'nullable|string',
             'icon' => 'nullable|string|max:50',
-            'is_active' => 'boolean',
+            'is_active' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
             return $this->errorResponse('Validation failed', 422, $validator->errors());
         }
 
+        $slug = $request->filled('slug') ? Str::slug($request->slug) : Str::slug($request->name);
+        if (Category::where('slug', $slug)->exists()) {
+            $slug .= '-' . rand(100, 999);
+        }
+
         $category = Category::create([
             'name' => $request->name,
-            'slug' => Str::slug($request->name),
+            'slug' => $slug,
+            'description' => $request->description,
             'deposit_amount' => $request->deposit_amount,
             'icon' => $request->icon ?: 'Grid',
-            'is_active' => $request->has('is_active') ? $request->is_active : true,
+            'is_active' => $request->has('is_active') ? (bool)$request->is_active : true,
         ]);
 
         return $this->successResponse($category, 'Category created successfully', 201);
@@ -66,16 +74,18 @@ class CategoryController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:100|unique:categories,name,' . $id,
+            'slug' => 'nullable|string|max:100',
             'deposit_amount' => 'sometimes|required|numeric|min:0',
+            'description' => 'nullable|string',
             'icon' => 'nullable|string|max:50',
-            'is_active' => 'boolean',
+            'is_active' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
             return $this->errorResponse('Validation failed', 422, $validator->errors());
         }
 
-        $category->update($request->only(['name', 'deposit_amount', 'icon', 'is_active']));
+        $category->update($request->only(['name', 'slug', 'description', 'deposit_amount', 'icon', 'is_active']));
 
         return $this->successResponse($category, 'Category updated successfully');
     }

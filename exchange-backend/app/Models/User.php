@@ -64,4 +64,19 @@ class User extends Authenticatable
     {
         return $this->hasMany(CommunicationContact::class, 'user_id');
     }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(Item::class, 'user_id');
+    }
+
+    public function reviewsGiven(): HasMany
+    {
+        return $this->hasMany(Review::class, 'reviewer_id');
+    }
+
+    public function reviewsReceived(): HasMany
+    {
+        return $this->hasMany(Review::class, 'reviewed_user_id');
+    }
 }

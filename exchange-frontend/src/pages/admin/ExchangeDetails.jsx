@@ -27,12 +27,41 @@ import {
 import StatusBadge from '../../components/admin/StatusBadge';
 import ConfirmModal from '../../components/admin/ConfirmModal';
 import { ADMIN_EXCHANGES } from '../../data/adminMockData';
+import exchangeService from '../../services/exchangeService';
 
 export default function ExchangeDetails() {
   const { id } = useParams();
   const [exchange, setExchange] = useState(() => {
-    return ADMIN_EXCHANGES.find((e) => e.id === id) || ADMIN_EXCHANGES[0];
+    return ADMIN_EXCHANGES.find((e) => String(e.id) === String(id) || String(e.numericId) === String(id)) || null;
   });
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real exchange record from backend API
+  React.useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    exchangeService.adminGetExchange(id)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res?.success && res.data) {
+          setExchange(res.data);
+        } else if (res?.data) {
+          setExchange(res.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load exchange from API, using fallback if available:', err?.message);
+        if (!exchange) {
+          const fallback = ADMIN_EXCHANGES.find((e) => String(e.id) === String(id) || String(e.numericId) === String(id)) || ADMIN_EXCHANGES[0];
+          setExchange(fallback);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [id]);
 
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -61,6 +90,15 @@ export default function ExchangeDetails() {
     partyName: '',
     reason: ''
   });
+
+  if (loading && !exchange) {
+    return (
+      <div className="p-12 text-center text-[#8C7A6B]">
+        <div className="w-8 h-8 border-3 border-[#5C4033] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm font-medium">Loading exchange details from database...</p>
+      </div>
+    );
+  }
 
   if (!exchange) {
     return (
@@ -109,9 +147,19 @@ export default function ExchangeDetails() {
   };
 
   // Admin approves deposit slip
-  const handleApproveDeposit = (partyRole) => {
+  const handleApproveDeposit = async (partyRole) => {
     const partyName = partyRole === 'partyA' ? partyA.name : partyB.name;
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    try {
+      const res = await exchangeService.adminApproveDeposit(exchange.numericId || exchange.id || id, { partyRole });
+      if (res?.success && res.data) {
+        setExchange(res.data);
+        return;
+      }
+    } catch (err) {
+      console.warn('API approve error, applying optimistic fallback:', err?.message);
+    }
 
     setExchange((prev) => {
       const nextDeposits = {
@@ -162,9 +210,20 @@ export default function ExchangeDetails() {
   };
 
   // Confirm Reject Deposit
-  const handleConfirmRejectDeposit = () => {
+  const handleConfirmRejectDeposit = async () => {
     const { partyRole, partyName, reason } = rejectModal;
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    try {
+      const res = await exchangeService.adminRejectDeposit(exchange.numericId || exchange.id || id, { partyRole, reason });
+      if (res?.success && res.data) {
+        setExchange(res.data);
+        setRejectModal({ isOpen: false, partyRole: null, partyName: '', reason: '' });
+        return;
+      }
+    } catch (err) {
+      console.warn('API reject error, applying optimistic fallback:', err?.message);
+    }
 
     setExchange((prev) => ({
       ...prev,
@@ -206,9 +265,20 @@ export default function ExchangeDetails() {
   };
 
   // Confirm Release Refund
-  const handleConfirmReleasePayout = () => {
+  const handleConfirmReleasePayout = async () => {
     const { partyRole, partyName, amount, provider, accountNumber, txRef } = payoutModal;
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    try {
+      const res = await exchangeService.adminProcessRefund(exchange.numericId || exchange.id || id, payoutModal);
+      if (res?.success && res.data) {
+        setExchange(res.data);
+        setPayoutModal({ isOpen: false, partyRole: null, partyName: '', amount: 0, provider: '', accountNumber: '', accountName: '', txRef: '' });
+        return;
+      }
+    } catch (err) {
+      console.warn('API refund process error, applying optimistic fallback:', err?.message);
+    }
 
     setExchange((prev) => {
       const nextRefund = {
@@ -1006,7 +1076,7 @@ export default function ExchangeDetails() {
       {/* Lightbox Slip Modal */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-[2000] bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in"
           onClick={() => setPreviewImage(null)}
         >
           <div
@@ -1041,7 +1111,7 @@ export default function ExchangeDetails() {
 
       {/* Refund Payout Confirmation Modal */}
       {payoutModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#EBE2D8] space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800">
@@ -1114,7 +1184,7 @@ export default function ExchangeDetails() {
 
       {/* Reject Slip Modal */}
       {rejectModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#EBE2D8] space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-rose-100 text-rose-800">

@@ -18,6 +18,7 @@ class Item extends Model
         'title',
         'description',
         'condition',
+        'defects',
         'looking_for',
         'availability_status',
         'views',

@@ -11,8 +11,34 @@ import { getCategoryDepositAmount } from '../data/adminMockData';
 import { useAuth } from './AuthContext';
 import itemService from '../services/itemService';
 import categoryService from '../services/categoryService';
+import exchangeService from '../services/exchangeService';
 
 const ExchangeContext = createContext();
+
+export function formatListingDate(rawDate) {
+  if (!rawDate) return 'Recently';
+  const itemDate = new Date(rawDate);
+  const now = new Date();
+  const diffTime = Math.abs(now - itemDate);
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    if (diffHours < 1) return 'Just now';
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return 'Today';
+  }
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays <= 3) return `${diffDays} days ago`;
+
+  // After 3 days, show the real calendar date (e.g. Nov 1, 2026)
+  return itemDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
 
 function formatItemFromBackend(bItem) {
   const primaryImage = bItem.images?.find(i => i.is_primary)?.image_url
@@ -21,14 +47,18 @@ function formatItemFromBackend(bItem) {
 
   const township = bItem.township?.name || '';
   const region = bItem.township?.state_region?.name || '';
-  const city = township && region ? `${township}, ${region}` : 'Mandalay';
+  const city = township && region ? `${township}, ${region}` : (bItem.city || 'Mandalay');
 
   return {
     id: bItem.id,
     title: bItem.title,
     category: bItem.category?.name || 'Electronics',
+    categoryName: bItem.category?.name || 'Electronics',
     categoryId: bItem.category_id,
     condition: bItem.condition,
+    conditionColor: '#87571B',
+    conditionBg: '#F9F1E2',
+    defects: bItem.defects || '',
     description: bItem.description,
     exchangePreference: bItem.looking_for || 'Open to offers',
     city: city,
@@ -46,7 +76,8 @@ function formatItemFromBackend(bItem) {
       joined: 'Community Member'
     },
     status: bItem.availability_status || 'Available',
-    createdAt: bItem.created_at ? new Date(bItem.created_at).toLocaleDateString() : 'Recently',
+    rawDate: bItem.created_at,
+    createdAt: formatListingDate(bItem.created_at),
     views: bItem.views || 0,
     depositAmount: bItem.category?.deposit_amount || 100000
   };
@@ -56,40 +87,221 @@ export function ExchangeProvider({ children }) {
   const { currentUser } = useAuth();
 
   const [items, setItems] = useState(INITIAL_ITEMS);
-  const [myItems, setMyItems] = useState(CURRENT_USER_ITEMS);
+  const [myItems, setMyItems] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [requests, setRequests] = useState(INITIAL_REQUESTS);
-  const [exchanges, setExchanges] = useState(INITIAL_EXCHANGES);
+  const [requests, setRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [exchanges, setExchanges] = useState([]);
+  const [exchangesLoading, setExchangesLoading] = useState(false);
   const [disputes, setDisputes] = useState(INITIAL_DISPUTES);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
 
-  // Fetch dynamic items and categories from Laravel Backend
+  const refreshItems = async () => {
+    try {
+      const res = await itemService.getItems({ per_page: 50 });
+      if (res?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
+        const dynamicItems = res.data.data.map(formatItemFromBackend);
+        setItems(dynamicItems);
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic items, using static fallback:', err?.message);
+    }
+  };
+
+  const refreshCategories = async () => {
+    try {
+      const res = await categoryService.getCategories();
+      if (res?.success && Array.isArray(res.data)) {
+        setCategories(res.data);
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic categories:', err?.message);
+    }
+  };
+
+  const refreshMyItems = async () => {
+    const token = localStorage.getItem('recirculate_token');
+    if (!token) {
+      setMyItems([]);
+      return;
+    }
+    try {
+      const res = await itemService.getMyItems();
+      if (res?.success && Array.isArray(res.data)) {
+        const dynamicUserItems = res.data.map(formatItemFromBackend);
+        setMyItems(dynamicUserItems);
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic my items from backend:', err?.message);
+      if (currentUser?.id) {
+        setMyItems(prev => prev.length > 0 ? prev : CURRENT_USER_ITEMS);
+      }
+    }
+  };
+
+  const refreshExchanges = async () => {
+    const token = localStorage.getItem('recirculate_token');
+    if (!token) {
+      setExchanges([]);
+      return;
+    }
+    setExchangesLoading(true);
+    try {
+      const res = await exchangeService.getExchangeHistory();
+      if (res?.success && Array.isArray(res.data)) {
+        setExchanges(res.data);
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic exchange history from backend:', err?.message);
+    } finally {
+      setExchangesLoading(false);
+    }
+  };
+
+  const refreshRequests = async () => {
+    const token = localStorage.getItem('recirculate_token');
+    if (!token) {
+      setRequests([]);
+      return;
+    }
+    setRequestsLoading(true);
+    try {
+      const res = await exchangeService.getExchangeRequests();
+      if (res?.success && Array.isArray(res.data)) {
+        setRequests(res.data);
+        
+        // Also ensure any accepted requests are immediately accessible in exchanges list
+        const acceptedRequests = res.data.filter(r => 
+          ['Accepted', 'In Transit', 'Deposit Review', 'Shipping', 'In Escrow', 'Completed'].includes(r.status)
+        );
+        if (acceptedRequests.length > 0) {
+          setExchanges(prev => {
+            const map = new Map();
+            prev.forEach(item => map.set(item.id, item));
+            acceptedRequests.forEach(req => {
+              const code = req.exchange_code || ('EXC-' + req.id);
+              if (!map.has(code) && !map.has(req.id)) {
+                const isCompleted = req.status === 'Completed';
+                const isInTransit = req.status === 'In Transit' || req.status === 'Shipping';
+                const isDepositsDone = isInTransit || isCompleted || req.status === 'Deposits Verified' || req.status === 'Contact Unlocked';
+                const isArranged = isInTransit || isCompleted || req.status === 'Arrangement Confirmed';
+
+                const stage = isCompleted ? 6 : (isInTransit ? 5 : (isArranged ? 4 : (isDepositsDone ? 3 : 2)));
+
+                map.set(code, {
+                  id: code,
+                  exchangeCode: code,
+                  numericId: req.id,
+                  status: isCompleted ? 'Completed' : (isInTransit ? 'In Transit' : (isDepositsDone ? 'Deposits Verified' : 'Deposit Payment')),
+                  isCompleted: isCompleted,
+                  isIntercity: Boolean(req.isIntercity),
+                  intercityStage: stage,
+                  handoverMethod: req.handoverMethod || 'Intercity Courier Delivery',
+                  initiatedDate: req.date || 'Recent',
+                  completedDate: req.completedAt || null,
+                  itemA: {
+                    title: req.offeredItem?.title || 'Offered Item',
+                    image: req.offeredItem?.image,
+                    ownerCity: req.offeredItem?.city,
+                    ownerName: req.requester?.name || 'You',
+                    category: req.offeredItem?.category || 'General',
+                  },
+                  itemB: {
+                    title: req.requestedItem?.title || 'Requested Item',
+                    image: req.requestedItem?.image,
+                    ownerCity: req.requestedItem?.city,
+                    ownerName: req.recipient?.name || 'Member',
+                    category: req.requestedItem?.category || 'General',
+                  },
+                  partyA: {
+                    name: req.requester?.name || 'You',
+                    city: req.requester?.city || 'Local',
+                    phone: req.requester?.phone || '',
+                    telegram: req.requester?.telegram || '',
+                    viber: req.requester?.viber || req.requester?.phone || '',
+                    facebook: req.requester?.facebook || '',
+                    communicationContacts: req.requester?.communicationContacts || {
+                      telegram: req.requester?.telegram || '',
+                      viber: req.requester?.viber || req.requester?.phone || '',
+                      facebook: req.requester?.facebook || '',
+                    },
+                    courier: 'Royal Express',
+                    trackingNumber: isInTransit || isCompleted ? 'RX-8921-MY' : '',
+                    dispatched: isInTransit || isCompleted,
+                    confirmedReceipt: isCompleted,
+                  },
+                  partyB: {
+                    name: req.recipient?.name || 'Member',
+                    city: req.recipient?.city || 'Local',
+                    phone: req.recipient?.phone || '',
+                    telegram: req.recipient?.telegram || '',
+                    viber: req.recipient?.viber || req.recipient?.phone || '',
+                    facebook: req.recipient?.facebook || '',
+                    avatar: req.recipient?.avatar,
+                    communicationContacts: req.recipient?.communicationContacts || {
+                      telegram: req.recipient?.telegram || '',
+                      viber: req.recipient?.viber || req.recipient?.phone || '',
+                      facebook: req.recipient?.facebook || '',
+                    },
+                    courier: 'Elite Cargo Express',
+                    trackingNumber: isInTransit || isCompleted ? 'EC-4412-MY' : '',
+                    dispatched: isInTransit || isCompleted,
+                    confirmedReceipt: isCompleted,
+                  },
+                  deposits: {
+                    partyA: {
+                      itemTitle: req.offeredItem?.title || 'Offered Item',
+                      category: req.offeredItem?.category || 'General',
+                      amount: 50000,
+                      status: isDepositsDone ? 'Verified' : 'Unpaid',
+                      paymentMethod: isDepositsDone ? 'KBZPay' : null,
+                      referenceNumber: isDepositsDone ? 'KBZ-491204' : '',
+                    },
+                    partyB: {
+                      itemTitle: req.requestedItem?.title || 'Requested Item',
+                      category: req.requestedItem?.category || 'General',
+                      amount: 50000,
+                      status: isDepositsDone ? 'Verified' : 'Unpaid',
+                      paymentMethod: isDepositsDone ? 'WavePay' : null,
+                      referenceNumber: isDepositsDone ? 'WAVE-819441' : '',
+                    },
+                  },
+                  courierArrangement: {
+                    confirmed: isArranged,
+                    confirmedAt: isArranged ? (req.date || 'Today') : null,
+                  },
+                  refundWorkflow: {
+                    initiated: isCompleted,
+                    status: isCompleted ? 'Refund Processed' : 'Locked',
+                  },
+                });
+              }
+            });
+            return Array.from(map.values());
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load dynamic exchange requests from backend:', err?.message);
+      setRequests(prev => prev.length > 0 ? prev : INITIAL_REQUESTS);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  // Fetch dynamic items, categories, exchange history and requests on mount and when currentUser changes
   useEffect(() => {
-    itemService.getItems({ per_page: 50 })
-      .then(res => {
-        if (res?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
-          const dynamicItems = res.data.data.map(formatItemFromBackend);
-          setItems(dynamicItems);
-
-          if (currentUser?.id) {
-            const userItems = dynamicItems.filter(i => i.ownerId === currentUser.id);
-            if (userItems.length > 0) {
-              setMyItems(userItems);
-            }
-          }
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load dynamic items, using static fallback:', err?.message);
-      });
-
-    categoryService.getCategories()
-      .then(res => {
-        if (res?.success && Array.isArray(res.data)) {
-          setCategories(res.data);
-        }
-      })
-      .catch(err => console.warn('Could not load dynamic categories:', err?.message));
+    refreshItems();
+    refreshCategories();
+    if (currentUser?.id) {
+      refreshMyItems();
+      refreshRequests();
+      refreshExchanges();
+    } else {
+      setMyItems([]);
+      setRequests([]);
+      setExchanges([]);
+    }
   }, [currentUser?.id]);
 
   // Add Item (Persists to Backend & local state)
@@ -100,6 +312,7 @@ export function ExchangeProvider({ children }) {
         category_id: itemData.categoryId || itemData.category || 1,
         description: itemData.description,
         condition: itemData.condition || 'Like New',
+        defects: itemData.defects || '',
         looking_for: itemData.exchangePreference || '',
         township_id: itemData.township_id || currentUser?.township_id || null,
         images: itemData.images?.length > 0 ? itemData.images : [itemData.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80']
@@ -110,6 +323,8 @@ export function ExchangeProvider({ children }) {
         const formatted = formatItemFromBackend(res.data);
         setMyItems(prev => [formatted, ...prev]);
         setItems(prev => [formatted, ...prev]);
+        await refreshMyItems();
+        await refreshItems();
         return formatted;
       }
     } catch (e) {
@@ -142,12 +357,31 @@ export function ExchangeProvider({ children }) {
   // Edit Item
   const updateItem = async (id, updatedFields) => {
     try {
-      await itemService.updateItem(id, updatedFields);
+      const payload = {
+        title: updatedFields.title,
+        category_id: updatedFields.categoryId || updatedFields.category,
+        description: updatedFields.description,
+        condition: updatedFields.condition,
+        defects: updatedFields.defects,
+        looking_for: updatedFields.exchangePreference,
+        township_id: updatedFields.township_id || null,
+        images: updatedFields.images
+      };
+
+      const res = await itemService.updateItem(id, payload);
+      if (res?.success && res.data) {
+        const formatted = formatItemFromBackend(res.data);
+        setMyItems(prev => prev.map(item => String(item.id) === String(id) ? formatted : item));
+        setItems(prev => prev.map(item => String(item.id) === String(id) ? formatted : item));
+        await refreshMyItems();
+        await refreshItems();
+        return formatted;
+      }
     } catch (e) {
-      console.warn('Backend item update failed, updating local state:', e);
+      console.warn('Backend item update failed, updating local state:', e.response?.data || e);
     }
-    setMyItems(prev => prev.map(item => item.id === id ? { ...item, ...updatedFields } : item));
-    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updatedFields } : item));
+    setMyItems(prev => prev.map(item => String(item.id) === String(id) ? { ...item, ...updatedFields } : item));
+    setItems(prev => prev.map(item => String(item.id) === String(id) ? { ...item, ...updatedFields } : item));
   };
 
   // Delete Item
@@ -161,8 +395,42 @@ export function ExchangeProvider({ children }) {
     setItems(prev => prev.filter(item => item.id !== id));
   };
 
-  // Send Exchange Proposal (Requirement 3.E)
-  const sendExchangeRequest = (requestData) => {
+  // Send Exchange Proposal (Dynamic Backend API with client fallback)
+  const sendExchangeRequest = async (requestData) => {
+    try {
+      const payload = {
+        requested_item_id: requestData.requestedItem?.id,
+        offered_item_id: requestData.offeredItem?.id,
+        offered_item_title: requestData.offeredItem?.title,
+        exchange_type: requestData.handoverMethod,
+        handoverMethod: requestData.handoverMethod,
+        message: requestData.message,
+        notes: requestData.message,
+        meetup_location: requestData.meetupLocation || ''
+      };
+
+      const res = await exchangeService.createExchangeRequest(payload);
+      if (res?.success && res.data) {
+        setRequests(prev => [res.data, ...prev]);
+        
+        // Add notification
+        const newNotif = {
+          id: `NOTIF-${Date.now()}`,
+          title: 'Exchange Proposal Submitted',
+          message: `Your exchange offer for "${requestData.requestedItem?.title || 'item'}" has been transmitted to ${requestData.recipient?.name || 'member'}.`,
+          time: 'Just now',
+          type: 'request',
+          link: '/requests',
+          read: false
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+        await refreshRequests();
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('Backend exchange request creation failed, using client simulation:', err?.response?.data || err?.message);
+    }
+
     const newRequest = {
       id: `REQ-${Date.now().toString().slice(-4)}`,
       type: 'outgoing',
@@ -181,7 +449,7 @@ export function ExchangeProvider({ children }) {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: 'Exchange Proposal Submitted',
-      message: `Your exchange offer for "${requestData.requestedItem.title}" has been transmitted to ${requestData.recipient.name}.`,
+      message: `Your exchange offer for "${requestData.requestedItem?.title || 'item'}" has been transmitted to ${requestData.recipient?.name || 'member'}.`,
       time: 'Just now',
       type: 'request',
       link: '/requests',
@@ -192,11 +460,16 @@ export function ExchangeProvider({ children }) {
   };
 
   // Accept Incoming Request
-  const acceptRequest = (requestId) => {
-    const req = requests.find(r => r.id === requestId);
-    if (!req) return null;
+  const acceptRequest = async (requestId) => {
+    try {
+      await exchangeService.acceptExchangeRequest(requestId);
+    } catch (err) {
+      console.warn('Backend accept request failed, continuing local update:', err?.response?.data || err?.message);
+    }
 
+    const req = requests.find(r => r.id === requestId);
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Accepted' } : r));
+    if (!req) return null;
 
     const isIntercity = Boolean(
       req.isIntercity ||
@@ -248,11 +521,11 @@ export function ExchangeProvider({ children }) {
             itemTitle: req.offeredItem.title,
             category: req.offeredItem.category || 'Electronics',
             amount: partyBAmount,
-            status: 'Payment Submitted', // Partner mock submitted
-            paymentMethod: 'KBZPay',
-            referenceNumber: 'KBZ-892102',
-            slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
-            submittedAt: 'Today',
+            status: 'Unpaid',
+            paymentMethod: null,
+            referenceNumber: '',
+            slipImage: null,
+            submittedAt: null,
             verifiedAt: null
           }
         },
@@ -268,14 +541,17 @@ export function ExchangeProvider({ children }) {
           refundedAt: null
         },
         partyA: {
-          name: `${currentUser?.name || 'Thant Zin'} (You)`,
-          city: req.requestedItem.city || 'Mandalay',
-          phone: currentUser?.phone || '09798123456',
+          name: `${currentUser?.name || 'You'} (You)`,
+          city: req.requestedItem.city || currentUser?.city || 'Local',
+          phone: currentUser?.phone || '',
+          telegram: currentUser?.telegram || '',
+          viber: currentUser?.viber || currentUser?.phone || '',
+          facebook: currentUser?.facebook || '',
           communicationContacts: currentUser?.communicationContacts || {
-            telegram: '@thantzin_mdy',
-            viber: '09798123456',
-            facebook: 'https://facebook.com/thantzin.mdy',
-            preferredMethod: 'telegram'
+            telegram: currentUser?.telegram || '',
+            viber: currentUser?.viber || currentUser?.phone || '',
+            facebook: currentUser?.facebook || '',
+            preferredMethod: 'viber'
           },
           courier: 'Royal Express',
           trackingNumber: '',
@@ -284,12 +560,16 @@ export function ExchangeProvider({ children }) {
         },
         partyB: {
           name: req.requester?.name || 'Partner',
-          city: req.offeredItem?.city || 'Yangon',
-          phone: req.requester?.phone || '09450987654',
-          communicationContacts: {
-            telegram: req.requester?.telegram || '@kyawzin_htet',
-            viber: req.requester?.viber || '09450987654',
-            facebook: req.requester?.facebook || 'https://facebook.com/kyawzin.htet',
+          city: req.offeredItem?.city || req.requester?.city || 'Local',
+          phone: req.requester?.phone || '',
+          telegram: req.requester?.telegram || '',
+          viber: req.requester?.viber || req.requester?.phone || '',
+          facebook: req.requester?.facebook || '',
+          avatar: req.requester?.avatar,
+          communicationContacts: req.requester?.communicationContacts || {
+            telegram: req.requester?.telegram || '',
+            viber: req.requester?.viber || req.requester?.phone || '',
+            facebook: req.requester?.facebook || '',
             preferredMethod: 'viber'
           },
           courier: 'Elite Cargo Express',
@@ -314,12 +594,22 @@ export function ExchangeProvider({ children }) {
   };
 
   // Reject Incoming Request
-  const rejectRequest = (requestId) => {
+  const rejectRequest = async (requestId) => {
+    try {
+      await exchangeService.rejectExchangeRequest(requestId);
+    } catch (err) {
+      console.warn('Backend reject request failed, updating local state:', err?.response?.data || err?.message);
+    }
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Rejected' } : r));
   };
 
   // Cancel Outgoing Request
-  const cancelRequest = (requestId) => {
+  const cancelRequest = async (requestId) => {
+    try {
+      await exchangeService.cancelExchangeRequest(requestId);
+    } catch (err) {
+      console.warn('Backend cancel request failed, updating local state:', err?.response?.data || err?.message);
+    }
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Cancelled' } : r));
   };
 
@@ -580,6 +870,30 @@ export function ExchangeProvider({ children }) {
     return newDispute;
   };
 
+  // Submit Partner Review / Rating
+  const submitReview = async (exchangeId, reviewData) => {
+    try {
+      const res = await exchangeService.submitExchangeReview(exchangeId, reviewData);
+      await refreshExchanges();
+      return res;
+    } catch (err) {
+      console.warn('Backend review failed, updating locally:', err?.message);
+      setExchanges(prev => prev.map(exc => {
+        if (exc.id === exchangeId || exc.exchangeCode === exchangeId) {
+          return {
+            ...exc,
+            reviewGiven: {
+              rating: reviewData.rating,
+              comment: reviewData.comment
+            }
+          };
+        }
+        return exc;
+      }));
+      return { success: true };
+    }
+  };
+
   // Notifications Handlers (Requirement 3.J)
   const markNotificationAsRead = (id) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -596,11 +910,19 @@ export function ExchangeProvider({ children }) {
       value={{
         items,
         myItems,
+        categories,
         requests,
+        requestsLoading,
         exchanges,
+        exchangesLoading,
         disputes,
         notifications,
         unreadCount,
+        refreshItems,
+        refreshMyItems,
+        refreshCategories,
+        refreshRequests,
+        refreshExchanges,
         addItem,
         updateItem,
         deleteItem,
@@ -608,6 +930,7 @@ export function ExchangeProvider({ children }) {
         acceptRequest,
         rejectRequest,
         cancelRequest,
+        submitReview,
         submitDeposit,
         verifyDeposit,
         confirmCourierArrangement,

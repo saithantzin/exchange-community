@@ -39,18 +39,18 @@ export default function MemberProfileModal({
     <div
       className="modal fade show d-block"
       tabIndex="-1"
-      style={{ backgroundColor: 'rgba(30, 20, 15, 0.65)', backdropFilter: 'blur(3px)', zIndex: 1080 }}
+      style={{ backgroundColor: 'rgba(30, 20, 15, 0.65)', backdropFilter: 'blur(3px)', zIndex: 3000 }}
       onClick={onClose}
     >
       <div
-        className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
+        className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+        <div className="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
           
           {/* Modal Header */}
           <div
-            className="modal-header border-bottom py-3 px-4"
+            className="modal-header border-bottom py-3 px-4 flex-shrink-0"
             style={{ backgroundColor: 'var(--bg-warm, #F9F6F0)', borderColor: 'var(--border-light, #EBE2D8)' }}
           >
             <div className="d-flex align-items-center gap-2">
@@ -72,7 +72,7 @@ export default function MemberProfileModal({
           </div>
 
           {/* Modal Body */}
-          <div className="modal-body p-4" style={{ backgroundColor: '#ffffff' }}>
+          <div className="modal-body p-4 overflow-y-auto flex-grow-1" style={{ backgroundColor: '#ffffff', maxHeight: 'calc(90vh - 130px)' }}>
             
             {/* Profile Overview Card */}
             <div
@@ -97,7 +97,7 @@ export default function MemberProfileModal({
                   <strong>{member.city || 'Myanmar'}</strong>
                   <span className="mx-2">•</span>
                   <i className="bi bi-calendar3 me-1"></i>
-                  {member.joined || 'Member since 2023'}
+                  {member.joined || (member.created_at ? 'Member since ' + new Date(member.created_at).getFullYear() : 'Community Member')}
                 </div>
                 <p className="small text-muted mb-0" style={{ lineHeight: 1.5, fontSize: '0.85rem' }}>
                   "{member.bio || 'Active trader committed to sustainable second-life item exchange across Myanmar.'}"
@@ -111,7 +111,7 @@ export default function MemberProfileModal({
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-warning-emphasis fs-5 mb-0">
                     <i className="bi bi-star-fill text-warning me-1"></i>
-                    {member.rating || 5.0}
+                    {member.rating ? Number(member.rating).toFixed(1) : 5.0}★
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Community Rating</span>
                 </div>
@@ -120,7 +120,7 @@ export default function MemberProfileModal({
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-success fs-5 mb-0">
                     <i className="bi bi-arrow-repeat me-1"></i>
-                    {member.exchanges || 12}
+                    {member.completedSwaps ?? member.exchanges ?? 0}
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Completed Swaps</span>
                 </div>
@@ -130,15 +130,15 @@ export default function MemberProfileModal({
                   <div className="fw-bold text-primary fs-5 mb-0">
                     <i className="bi bi-telephone-check me-1"></i> Verified
                   </div>
-                  <span className="text-muted small" style={{ fontSize: '0.78rem' }}>
-                    {member.phone || '09450987654'}
+                  <span className="text-muted small text-truncate d-block" style={{ fontSize: '0.78rem' }}>
+                    {member.phone || 'Phone Verified'}
                   </span>
                 </div>
               </div>
               <div className="col-6 col-md-3">
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-dark fs-5 mb-0">
-                    <i className="bi bi-shield-check text-success me-1"></i> 100%
+                    <i className="bi bi-shield-check text-success me-1"></i> {member.rating ? Math.round((Number(member.rating) / 5) * 100) + '%' : '100%'}
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Trust Score</span>
                 </div>
@@ -166,84 +166,120 @@ export default function MemberProfileModal({
                   Direct Social & Messaging Contacts
                 </span>
                 <span className="badge bg-white text-secondary border small" style={{ fontSize: '0.70rem' }}>
-                  Unlocked for Accepted Trade
+                  {requestStatus === 'Accepted' ? 'Unlocked for Accepted Trade' : 'Available for Coordination'}
                 </span>
               </div>
               <p className="text-muted small mb-3" style={{ fontSize: '0.80rem', lineHeight: 1.5 }}>
-                Use these social channels to coordinate parcel drop-off, share 10-second item inspection videos, and exchange courier tracking receipts.
+                Use these verified channels to coordinate parcel drop-off, share 10-second item inspection videos, and exchange courier tracking receipts.
               </p>
 
               <div className="row g-2 text-center">
                 {/* Viber */}
                 <div className="col-12 col-sm-4">
-                  <a
-                    href={`viber://chat?number=${member.viber || member.phone || '09450987654'}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
-                    style={{ borderColor: '#E2D5F8' }}
-                  >
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
-                      style={{ width: '34px', height: '34px', backgroundColor: '#7360F2' }}
+                  {member.viber || member.phone ? (
+                    <a
+                      href={`viber://chat?number=${member.viber || member.phone}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
+                      style={{ borderColor: '#E2D5F8' }}
                     >
-                      <i className="bi bi-telephone-fill small"></i>
-                    </div>
-                    <div className="text-start min-w-0">
-                      <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Viber</div>
-                      <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
-                        {member.viber || member.phone || '09450987654'}
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                        style={{ width: '34px', height: '34px', backgroundColor: '#7360F2' }}
+                      >
+                        <i className="bi bi-telephone-fill small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Viber</div>
+                        <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
+                          {member.viber || member.phone}
+                        </div>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-dark opacity-60 h-100" style={{ borderColor: '#E2D5F8' }}>
+                      <div className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0" style={{ width: '34px', height: '34px', backgroundColor: '#9E9E9E' }}>
+                        <i className="bi bi-telephone-x small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Viber</div>
+                        <div className="text-muted italic small" style={{ fontSize: '0.72rem' }}>Not provided</div>
                       </div>
                     </div>
-                  </a>
+                  )}
                 </div>
 
                 {/* Telegram */}
                 <div className="col-12 col-sm-4">
-                  <a
-                    href={`https://t.me/${(member.telegram || 'kyawzin_htet').replace('@', '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
-                    style={{ borderColor: '#C8E4FB' }}
-                  >
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
-                      style={{ width: '34px', height: '34px', backgroundColor: '#229ED9' }}
+                  {member.telegram ? (
+                    <a
+                      href={`https://t.me/${member.telegram.replace('@', '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
+                      style={{ borderColor: '#C8E4FB' }}
                     >
-                      <i className="bi bi-telegram small"></i>
-                    </div>
-                    <div className="text-start min-w-0">
-                      <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Telegram</div>
-                      <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
-                        {member.telegram || '@kyawzin_htet'}
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                        style={{ width: '34px', height: '34px', backgroundColor: '#229ED9' }}
+                      >
+                        <i className="bi bi-telegram small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Telegram</div>
+                        <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
+                          {member.telegram}
+                        </div>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-dark opacity-60 h-100" style={{ borderColor: '#C8E4FB' }}>
+                      <div className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0" style={{ width: '34px', height: '34px', backgroundColor: '#9E9E9E' }}>
+                        <i className="bi bi-send-x small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Telegram</div>
+                        <div className="text-muted italic small" style={{ fontSize: '0.72rem' }}>Not provided</div>
                       </div>
                     </div>
-                  </a>
+                  )}
                 </div>
 
                 {/* Facebook */}
                 <div className="col-12 col-sm-4">
-                  <a
-                    href={member.facebook ? (member.facebook.startsWith('http') ? member.facebook : `https://${member.facebook}`) : 'https://facebook.com'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
-                    style={{ borderColor: '#CCDDF9' }}
-                  >
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
-                      style={{ width: '34px', height: '34px', backgroundColor: '#1877F2' }}
+                  {member.facebook ? (
+                    <a
+                      href={member.facebook.startsWith('http') ? member.facebook : `https://${member.facebook}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-decoration-none text-dark hover-shadow h-100"
+                      style={{ borderColor: '#CCDDF9' }}
                     >
-                      <i className="bi bi-facebook small"></i>
-                    </div>
-                    <div className="text-start min-w-0">
-                      <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Facebook</div>
-                      <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
-                        {member.name}
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                        style={{ width: '34px', height: '34px', backgroundColor: '#1877F2' }}
+                      >
+                        <i className="bi bi-facebook small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Messenger</div>
+                        <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
+                          {member.facebook}
+                        </div>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="p-2.5 rounded-3 border bg-white d-flex align-items-center gap-2 text-dark opacity-60 h-100" style={{ borderColor: '#CCDDF9' }}>
+                      <div className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0" style={{ width: '34px', height: '34px', backgroundColor: '#9E9E9E' }}>
+                        <i className="bi bi-messenger small"></i>
+                      </div>
+                      <div className="text-start min-w-0">
+                        <div className="fw-bold small" style={{ fontSize: '0.78rem' }}>Messenger</div>
+                        <div className="text-muted italic small" style={{ fontSize: '0.72rem' }}>Not provided</div>
                       </div>
                     </div>
-                  </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -257,26 +293,40 @@ export default function MemberProfileModal({
               <div className="row g-2.5">
                 {memberItems.map((item) => (
                   <div key={item.id} className="col-12 col-sm-6">
-                    <div className="p-2.5 rounded-3 border d-flex align-items-center gap-2.5 bg-white h-100 hover-shadow transition">
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="rounded flex-shrink-0"
-                        style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                      />
-                      <div className="min-w-0 flex-grow-1">
-                        <div className="fw-semibold text-truncate text-dark small" title={item.title}>
-                          {item.title}
-                        </div>
-                        <div className="d-flex align-items-center gap-1.5 mt-0.5">
-                          <span className="badge bg-light text-dark border px-1.5 py-0.5" style={{ fontSize: '0.70rem' }}>
-                            {item.category || 'Goods'}
-                          </span>
-                          <span className="text-success small fw-medium" style={{ fontSize: '0.72rem' }}>
-                            {item.condition || 'Good'}
-                          </span>
+                    <div className="p-2.5 rounded-3 border d-flex align-items-center justify-content-between gap-2.5 bg-white h-100 hover-shadow transition">
+                      <div className="d-flex align-items-center gap-2.5 min-w-0">
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="rounded flex-shrink-0"
+                          style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                        />
+                        <div className="min-w-0">
+                          <div className="fw-semibold text-truncate text-dark small" title={item.title}>
+                            {item.title}
+                          </div>
+                          <div className="d-flex align-items-center gap-1.5 mt-0.5">
+                            <span className="badge bg-light text-dark border px-1.5 py-0.5" style={{ fontSize: '0.70rem' }}>
+                              {item.category || 'Goods'}
+                            </span>
+                            <span className="text-success small fw-medium" style={{ fontSize: '0.72rem' }}>
+                              {item.condition || 'Good'}
+                            </span>
+                          </div>
                         </div>
                       </div>
+
+                      {item.id && (
+                        <Link
+                          to={`/item/${item.id}`}
+                          onClick={onClose}
+                          className="btn btn-sm btn-outline-secondary py-1 px-2.5 rounded-pill text-decoration-none flex-shrink-0 d-inline-flex align-items-center gap-1"
+                          style={{ fontSize: '0.74rem' }}
+                          title="View full item details"
+                        >
+                          <i className="bi bi-eye"></i> Detail
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

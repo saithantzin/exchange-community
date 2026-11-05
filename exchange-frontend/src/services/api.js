@@ -17,7 +17,11 @@ const api = axios.create({
 // Request interceptor to attach bearer token from localStorage
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('recirculate_token') || localStorage.getItem('admin_token');
+    const isAdminReq = config.url && config.url.includes('/admin');
+    const token = isAdminReq
+      ? (localStorage.getItem('admin_token') || localStorage.getItem('recirculate_token'))
+      : (localStorage.getItem('recirculate_token') || localStorage.getItem('admin_token'));
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

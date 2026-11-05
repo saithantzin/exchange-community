@@ -147,9 +147,18 @@ export default function HomePage() {
         onExploreHousehold={() => navigate('/browse?cat=household')}
       />
 
-      {/* Latest Available Items */}
+      {/* Latest Available Items (Dynamic from MySQL Database) */}
       <LatestItemsGrid
-        items={items.slice(0, 8)}
+        items={React.useMemo(() => {
+          if (!items || items.length === 0) return [];
+          if (!selectedCategory || selectedCategory === 'all') return items.slice(0, 8);
+          const catLow = selectedCategory.toLowerCase();
+          return items.filter(it => 
+            String(it.categoryId) === String(selectedCategory) ||
+            (it.categoryName && it.categoryName.toLowerCase().includes(catLow)) ||
+            (it.category && it.category.toLowerCase().includes(catLow))
+          ).slice(0, 8);
+        }, [items, selectedCategory])}
         isLoading={false}
         error={null}
         selectedCategory={selectedCategory}

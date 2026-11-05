@@ -33,36 +33,75 @@ class ItemController extends Controller
             $query->where(function ($sub) use ($q) {
                 $sub->where('title', 'like', "%{$q}%")
                     ->orWhere('description', 'like', "%{$q}%")
-                    ->orWhere('looking_for', 'like', "%{$q}%");
+                    ->orWhere('looking_for', 'like', "%{$q}%")
+                    ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$q}%"));
             });
         }
 
-        // Category filter
-        if ($request->filled('category_id') && $request->category_id !== 'all') {
-            $query->where('category_id', $request->category_id);
+        // Category filter (supports numeric ID, slug, or name)
+        $cat = $request->category_id ?? $request->category ?? $request->cat;
+        if ($cat && $cat !== 'all') {
+            if (is_numeric($cat)) {
+                $query->where('category_id', $cat);
+            } else {
+                $query->whereHas('category', function ($c) use ($cat) {
+                    $c->where('slug', $cat)
+                      ->orWhere('name', 'like', "%{$cat}%");
+                });
+            }
         }
 
         // Condition filter
-        if ($request->filled('condition') && $request->condition !== 'all') {
-            $query->where('condition', $request->condition);
+        $cond = $request->condition ?? $request->cond;
+        if ($cond && $cond !== 'all') {
+            $query->where('condition', $cond);
         }
 
-        // City / Region filter
+        // State / Region ID filter
         if ($request->filled('state_region_id') && $request->state_region_id !== 'all') {
             $query->whereHas('township', function ($t) use ($request) {
                 $t->where('state_region_id', $request->state_region_id);
             });
         }
 
+        // City / Region keyword or code filter (e.g. 'YGN', 'MDY', 'Yangon', 'Mandalay')
+        $city = $request->city ?? $request->city_code;
+        if ($city && $city !== 'all') {
+            $query->where(function ($sub) use ($city) {
+                if (strtoupper($city) === 'MDY' || str_contains(strtolower($city), 'mandalay')) {
+                    $sub->whereHas('township.stateRegion', fn($r) => $r->where('name', 'like', '%Mandalay%'))
+                        ->orWhereHas('township', fn($t) => $t->where('name', 'like', '%Mandalay%'));
+                } elseif (strtoupper($city) === 'YGN' || str_contains(strtolower($city), 'yangon')) {
+                    $sub->whereHas('township.stateRegion', fn($r) => $r->where('name', 'like', '%Yangon%'))
+                        ->orWhereHas('township', fn($t) => $t->where('name', 'like', '%Yangon%'));
+                } elseif (strtoupper($city) === 'NPT' || str_contains(strtolower($city), 'naypyitaw') || str_contains(strtolower($city), 'nay pyi taw')) {
+                    $sub->whereHas('township.stateRegion', fn($r) => $r->where('name', 'like', '%Naypyitaw%'))
+                        ->orWhereHas('township', fn($t) => $t->where('name', 'like', '%Zabuthiri%'));
+                } else {
+                    $sub->whereHas('township', function ($t) use ($city) {
+                        $t->where('name', 'like', "%{$city}%")
+                          ->orWhereHas('stateRegion', fn($r) => $r->where('name', 'like', "%{$city}%"));
+                    });
+                }
+            });
+        }
+
         // Sorting
-        $sort = $request->get('sort', 'newest');
+        $sort = $request->get('sort', $request->get('sort_by', 'newest'));
         if ($sort === 'popular') {
             $query->orderBy('views', 'desc');
+        } elseif ($sort === 'title-asc') {
+            $query->orderBy('title', 'asc');
+        } elseif ($sort === 'title-desc') {
+            $query->orderBy('title', 'desc');
         } else {
             $query->latest();
         }
 
-        $items = $query->paginate($request->get('per_page', 12));
+        $perPage = (int) $request->get('per_page', 12);
+        if ($perPage <= 0) $perPage = 12;
+
+        $items = $query->paginate($perPage);
 
         return $this->successResponse($items, 'Items retrieved');
     }
@@ -76,7 +115,8 @@ class ItemController extends Controller
             'category',
             'township.stateRegion',
             'images',
-            'user:id,name,username,phone,rating,bio,profile_image,created_at'
+            'user.township.stateRegion',
+            'user.communicationContacts',
         ])->find($id);
 
         if (!$item) {
@@ -99,6 +139,7 @@ class ItemController extends Controller
             'category_id' => 'required',
             'description' => 'required|string',
             'condition' => 'required|string',
+            'defects' => 'nullable|string',
             'looking_for' => 'nullable|string|max:255',
             'township_id' => 'nullable',
             'images' => 'required|array|min:1',
@@ -135,6 +176,7 @@ class ItemController extends Controller
                 'title' => $request->title,
                 'description' => $request->description,
                 'condition' => $request->condition,
+                'defects' => $request->defects,
                 'looking_for' => $request->looking_for,
                 'availability_status' => 'Available',
             ]);
@@ -185,11 +227,13 @@ class ItemController extends Controller
 
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|required|string|max:255',
-            'category_id' => 'sometimes|required|exists:categories,id',
+            'category_id' => 'sometimes|required',
+            'township_id' => 'nullable',
             'description' => 'sometimes|required|string',
-            'condition' => 'sometimes|required|string|in:Brand New,Like New,Lightly Used,Well Used',
+            'condition' => 'sometimes|required|string',
+            'defects' => 'nullable|string',
             'looking_for' => 'nullable|string|max:255',
-            'availability_status' => 'sometimes|string|in:Available,Pending,Exchanged,Deactivated',
+            'availability_status' => 'sometimes|string',
             'images' => 'nullable|array',
         ]);
 
@@ -197,13 +241,42 @@ class ItemController extends Controller
             return $this->errorResponse('Validation failed', 422, $validator->errors());
         }
 
-        $item->update($request->only([
-            'title', 'category_id', 'description', 'condition', 'looking_for', 'availability_status'
-        ]));
+        $updateData = $request->only([
+            'title', 'description', 'condition', 'defects', 'looking_for', 'availability_status'
+        ]);
 
-        if ($request->has('images') && is_array($request->images)) {
+        if ($request->has('category_id')) {
+            $catId = $request->category_id;
+            if (!is_numeric($catId) || !\App\Models\Category::where('id', $catId)->exists()) {
+                $cat = \App\Models\Category::where('name', 'like', "%{$catId}%")
+                    ->orWhere('slug', \Illuminate\Support\Str::slug($catId))
+                    ->first();
+                $catId = $cat ? $cat->id : $item->category_id;
+            }
+            $updateData['category_id'] = $catId;
+        }
+
+        if ($request->has('township_id') && $request->township_id) {
+            $tId = $request->township_id;
+            if (is_numeric($tId) && \App\Models\Township::where('id', $tId)->exists()) {
+                $updateData['township_id'] = $tId;
+            }
+        }
+
+        $item->update($updateData);
+
+        if ($request->has('images') && is_array($request->images) && count($request->images) > 0) {
             $item->images()->delete();
             foreach ($request->images as $index => $imageUrl) {
+                if (is_string($imageUrl) && preg_match('/^data:image\/(\w+);base64,/', $imageUrl, $type)) {
+                    $data = substr($imageUrl, strpos($imageUrl, ',') + 1);
+                    $ext = strtolower($type[1]);
+                    $data = base64_decode($data);
+                    $filename = 'items/' . \Illuminate\Support\Str::random(40) . '.' . $ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                    $imageUrl = asset('storage/' . $filename);
+                }
+
                 ItemImage::create([
                     'item_id' => $item->id,
                     'image_url' => $imageUrl,
@@ -294,7 +367,7 @@ class ItemController extends Controller
      */
     public function myItems(Request $request): JsonResponse
     {
-        $items = Item::with(['category', 'township.stateRegion', 'images'])
+        $items = Item::with(['category', 'township.stateRegion', 'images', 'user'])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->get();

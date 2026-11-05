@@ -595,56 +595,56 @@ export const INITIAL_REQUESTS = [
 export const INITIAL_EXCHANGES = [
   {
     id: 'EXC-8801',
-    status: 'In Transit',
+    status: 'Deposit Payment Required',
     isIntercity: true,
-    intercityStage: 4,
+    intercityStage: 2,
     deposits: {
       partyA: {
         itemTitle: 'Logitech MX Master 3S Wireless Mouse',
         category: 'Electronics',
-        amount: 100000,
-        status: 'Verified',
-        paymentMethod: 'KBZPay',
-        referenceNumber: 'KBZ-491204',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
-        submittedAt: '2026-10-08 11:20',
-        verifiedAt: '2026-10-08 11:35'
+        amount: 50000,
+        status: 'Unpaid',
+        paymentMethod: null,
+        referenceNumber: '',
+        slipImage: null,
+        submittedAt: null,
+        verifiedAt: null
       },
       partyB: {
         itemTitle: 'Sony WH-1000XM4 Noise Canceling Headphones',
         category: 'Electronics',
-        amount: 100000,
-        status: 'Verified',
-        paymentMethod: 'WavePay',
-        referenceNumber: 'WAVE-819441',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
-        submittedAt: '2026-10-08 11:15',
-        verifiedAt: '2026-10-08 11:30'
+        amount: 50000,
+        status: 'Unpaid',
+        paymentMethod: null,
+        referenceNumber: '',
+        slipImage: null,
+        submittedAt: null,
+        verifiedAt: null
       }
     },
     courierArrangement: {
-      confirmed: true,
-      confirmedAt: '2026-10-09'
+      confirmed: false,
+      confirmedAt: null
     },
     refundWorkflow: {
       initiated: false,
-      status: 'Pending',
+      status: 'Locked',
       partyA: {
-        amount: 100000,
+        amount: 50000,
         walletType: 'KBZPay',
         accountNumber: '',
         accountName: '',
-        status: 'Pending Details',
+        status: 'Locked',
         requestedAt: null,
         transactionRef: null
       },
       partyB: {
-        amount: 100000,
+        amount: 50000,
         walletType: 'WavePay',
-        accountNumber: '09450987654',
-        accountName: 'Kyaw Zin Htet',
-        status: 'Processing Payout',
-        requestedAt: 'Today',
+        accountNumber: '',
+        accountName: '',
+        status: 'Locked',
+        requestedAt: null,
         transactionRef: null
       }
     },
@@ -652,7 +652,7 @@ export const INITIAL_EXCHANGES = [
     initiatedDate: '2026-10-08',
     itemA: {
       title: 'Logitech MX Master 3S Wireless Mouse',
-      ownerName: 'Thant Zin (You)',
+      ownerName: 'You',
       ownerCity: 'Mandalay',
       image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80'
     },
@@ -663,29 +663,29 @@ export const INITIAL_EXCHANGES = [
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80'
     },
     partyA: {
-      name: 'Thant Zin (You)',
+      name: 'You',
       city: 'Mandalay',
       courier: 'Royal Express',
-      trackingNumber: 'RX-8921-MY',
-      dispatched: true,
+      trackingNumber: '',
+      dispatched: false,
       confirmedReceipt: false
     },
     partyB: {
       name: 'Kyaw Zin Htet',
       city: 'Yangon',
-      phone: '09450987654',
-      viber: '09450987654',
-      telegram: '@kyawzin_htet',
-      facebook: 'https://facebook.com/kyawzin.htet',
+      phone: '',
+      viber: '',
+      telegram: '',
+      facebook: '',
       courier: 'Elite Cargo Express',
-      trackingNumber: 'EC-7721-YM',
-      dispatched: true,
-      confirmedReceipt: true
+      trackingNumber: '',
+      dispatched: false,
+      confirmedReceipt: false
     },
     courierTracking: {
       route: 'Mandalay ⇄ Yangon Express Transit',
-      currentLocation: 'Yangon Central Cargo Sorting Hub',
-      eta: 'Arriving Tomorrow'
+      currentLocation: 'Awaiting Escrow Deposit Verification & Courier Drop-off',
+      eta: 'Pending Courier Dispatch'
     },
     isCompleted: false,
     disputeFiled: false

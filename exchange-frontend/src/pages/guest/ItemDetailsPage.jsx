@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useExchange } from '../../context/ExchangeContext';
 import { useAuth } from '../../context/AuthContext';
 import ExchangeRequestModal from '../../components/ExchangeRequestModal';
+import itemService from '../../services/itemService';
 
 export default function ItemDetailsPage() {
   const { id } = useParams();
@@ -10,22 +11,134 @@ export default function ItemDetailsPage() {
   const { items, myItems, sendExchangeRequest } = useExchange();
   const { currentUser, isLoggedIn } = useAuth();
 
-  // Combine items to find
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [fetchedItem, setFetchedItem] = useState(null);
+
+  // Directly query backend for item by ID
+  useEffect(() => {
+    if (id) {
+      setLoading(true);
+      setNotFound(false);
+      itemService.getItemById(id)
+        .then(res => {
+          if (res?.success && res.data) {
+            const bItem = res.data;
+            const primaryImage = bItem.images?.find(i => i.is_primary)?.image_url
+              || bItem.images?.[0]?.image_url
+              || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80';
+            const township = bItem.township?.name || '';
+            const region = bItem.township?.state_region?.name || '';
+            const city = township && region ? `${township}, ${region}` : (bItem.city || 'Mandalay Region');
+
+            const ownerTownship = bItem.user?.township?.name || '';
+            const ownerRegion = bItem.user?.township?.state_region?.name || '';
+            const ownerCity = ownerTownship && ownerRegion ? `${ownerTownship}, ${ownerRegion}` : city;
+
+            setFetchedItem({
+              id: bItem.id,
+              title: bItem.title,
+              category: bItem.category?.name || 'General',
+              categoryName: bItem.category?.name || 'General',
+              categoryId: bItem.category_id,
+              condition: bItem.condition,
+              conditionColor: '#87571B',
+              conditionBg: '#F9F1E2',
+              defects: bItem.defects || '',
+              description: bItem.description,
+              exchangePreference: bItem.looking_for || 'Open to offers',
+              city: city,
+              cityCode: city.toLowerCase().includes('mandalay') ? 'MDY' : 'YGN',
+              images: bItem.images?.map(i => i.image_url) || [primaryImage],
+              image: primaryImage,
+              ownerId: bItem.user_id,
+              owner: {
+                id: bItem.user?.id || bItem.user_id,
+                name: bItem.user?.name || 'Community Member',
+                email: bItem.user?.email || '',
+                username: bItem.user?.username || '',
+                phone: bItem.user?.phone || '',
+                city: ownerCity,
+                rating: Number(bItem.user?.rating) || 5.0,
+                avatar: bItem.user?.profile_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80',
+                joined: bItem.user?.created_at ? `Member since ${new Date(bItem.user.created_at).getFullYear()}` : 'Community Member',
+                exchanges: bItem.user?.completed_swaps || 0
+              },
+              status: bItem.availability_status || 'Available',
+              createdAt: bItem.created_at ? new Date(bItem.created_at).toLocaleDateString() : 'Recently',
+              views: bItem.views || 0,
+              depositAmount: bItem.category?.deposit_amount || 50000
+            });
+          } else {
+            const allItems = [...items, ...myItems];
+            const local = allItems.find(i => String(i.id) === String(id));
+            if (local) {
+              setFetchedItem(local);
+            } else {
+              setNotFound(true);
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('Could not fetch item details from API:', err?.message);
+          const allItems = [...items, ...myItems];
+          const local = allItems.find(i => String(i.id) === String(id));
+          if (local) {
+            setFetchedItem(local);
+          } else {
+            setNotFound(true);
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [id, items, myItems]);
+
   const allItems = [...items, ...myItems];
-  const item = allItems.find(i => String(i.id) === String(id)) || items[0];
+  const item = fetchedItem || allItems.find(i => String(i.id) === String(id));
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
+  if (loading) {
+    return (
+      <div className="py-5 text-center d-flex flex-column align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh' }}>
+        <div className="spinner-border mb-3" style={{ color: 'var(--primary-brown)', width: '3rem', height: '3rem' }} role="status">
+          <span className="visually-hidden">Loading item details...</span>
+        </div>
+        <p className="text-muted fw-medium">Loading item details from database...</p>
+      </div>
+    );
+  }
+
+  if (notFound || !item?.title) {
+    return (
+      <div className="py-5 text-center" style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh' }}>
+        <div className="container-xl">
+          <div className="p-5 bg-white rounded-4 border mx-auto shadow-sm" style={{ maxWidth: '500px', borderColor: 'var(--border-light)' }}>
+            <i className="bi bi-box-seam fs-1 text-muted mb-3 d-block"></i>
+            <h4 className="fw-bold mb-2 font-serif text-dark">Item Not Found</h4>
+            <p className="text-muted mb-4" style={{ fontSize: '0.9rem' }}>The requested item does not exist or has been removed from the platform.</p>
+            <Link to="/browse" className="btn px-4 py-2 text-white" style={{ backgroundColor: 'var(--primary-brown)', borderRadius: '8px' }}>
+              Browse Available Items
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const imagesList = item.images && item.images.length > 0 ? item.images : [item.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80'];
 
   // Check if current logged-in user is the owner of this post
   const isOwner = Boolean(
-    currentUser && (
+    currentUser && item && (
       (item.ownerId && String(currentUser.id) === String(item.ownerId)) ||
       (item.owner?.id && String(currentUser.id) === String(item.owner.id)) ||
-      (item.owner?.name && currentUser.name && item.owner.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
+      (item.owner?.name && currentUser.name && item.owner.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
+      (item.owner?.email && currentUser.email && item.owner.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
     )
   );
 
@@ -37,16 +150,25 @@ export default function ItemDetailsPage() {
     }
   };
 
-  const handleProposalSuccess = (proposalData) => {
-    sendExchangeRequest({
-      recipient: item.owner,
-      requestedItem: item,
-      offeredItem: { title: proposalData.offeredItem, city: currentUser?.city, image: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&q=80' },
-      handoverMethod: proposalData.handoverType,
-      message: `I'd love to exchange my item for your ${item.title}.`
-    });
-    setToastMessage(`Your proposal has been sent to ${item.owner.name}! Waiting for review.`);
-    setTimeout(() => setToastMessage(null), 5000);
+  const handleProposalSuccess = async (proposalData) => {
+    try {
+      await sendExchangeRequest({
+        recipient: item.owner,
+        requestedItem: item,
+        offeredItem: proposalData.offeredItemObj || {
+          title: proposalData.offeredItem,
+          city: currentUser?.city,
+          image: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&q=80'
+        },
+        handoverMethod: proposalData.handoverType,
+        message: proposalData.note || `I'd love to exchange my item for your ${item.title}.`
+      });
+      setToastMessage(`Your proposal has been sent to ${item.owner?.name || 'the listing owner'}! Waiting for review.`);
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch {
+      setToastMessage('Could not transmit exchange proposal. Please try again.');
+      setTimeout(() => setToastMessage(null), 5000);
+    }
   };
 
   return (
@@ -236,21 +358,21 @@ export default function ItemDetailsPage() {
               <div className="d-flex align-items-center justify-content-between">
                 <div className="d-flex align-items-center gap-3">
                   <img
-                    src={item.owner.avatar}
-                    alt={item.owner.name}
+                    src={item.owner?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80'}
+                    alt={item.owner?.name || 'Owner'}
                     className="rounded-circle"
                     style={{ width: '52px', height: '52px', objectFit: 'cover' }}
                   />
                   <div>
                     <h6 className="mb-1 fw-bold text-dark" style={{ fontSize: '0.98rem' }}>
-                      {item.owner.name}
+                      {item.owner?.name || 'Community Member'}
                     </h6>
                     <span className="text-muted" style={{ fontSize: '0.82rem' }}>
-                      {item.owner.city} • {item.owner.joined}
+                      {item.owner?.city || item.city} • {item.owner?.joined || 'Active Member'}
                     </span>
                     <div className="d-flex align-items-center gap-2 mt-1.5">
                       <span className="badge bg-light text-dark border px-2.5 py-1" style={{ fontSize: '0.75rem' }}>
-                        <i className="bi bi-check-circle-fill text-success me-1"></i> {item.owner.exchanges} completed swaps
+                        <i className="bi bi-check-circle-fill text-success me-1"></i> {item.owner?.exchanges || 0} completed swaps
                       </span>
                     </div>
                   </div>
@@ -258,7 +380,7 @@ export default function ItemDetailsPage() {
 
                 <div className="text-end">
                   <span className="badge bg-warning text-dark fw-bold px-3 py-1.5" style={{ fontSize: '0.92rem' }}>
-                    {item.owner.rating} ★
+                    {item.owner?.rating || 5.0} ★
                   </span>
                   <span className="d-block text-muted mt-1" style={{ fontSize: '0.74rem' }}>
                     Community Trust

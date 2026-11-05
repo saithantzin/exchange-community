@@ -36,6 +36,7 @@ export default function ExchangeDetailsPage() {
   const { currentUser } = useAuth();
   const {
     exchanges,
+    requests,
     completeExchange,
     confirmReceipt,
     updateCourierDispatch,
@@ -47,7 +48,113 @@ export default function ExchangeDetailsPage() {
     completeRefundPayout
   } = useExchange();
 
-  const exchange = exchanges.find(e => e.id === id) || exchanges[0];
+  const cleanId = String(id || '').replace(/^#/, '').trim();
+  const cleanIdLower = cleanId.toLowerCase();
+
+  const foundExchange = exchanges.find(e => {
+    const eid = String(e.id || '').replace(/^#/, '').trim().toLowerCase();
+    const eCode = String(e.exchangeCode || '').replace(/^#/, '').trim().toLowerCase();
+    const eNum = String(e.numericId || '').trim();
+    return eid === cleanIdLower || eCode === cleanIdLower || eNum === cleanIdLower;
+  });
+
+  const matchingReq = !foundExchange ? requests.find(r => {
+    const rId = String(r.id || '').trim();
+    const rCode = String(r.exchange_code || '').replace(/^#/, '').trim().toLowerCase();
+    return rId === cleanIdLower || rCode === cleanIdLower;
+  }) : null;
+
+  const exchange = foundExchange || (matchingReq ? {
+    id: matchingReq.exchange_code || ('EXC-' + matchingReq.id),
+    numericId: matchingReq.id,
+    status: matchingReq.status === 'Completed' ? 'Completed' : (matchingReq.status === 'In Transit' ? 'In Transit' : 'Deposit Payment Required'),
+    isIntercity: Boolean(matchingReq.isIntercity),
+    intercityStage: matchingReq.status === 'Completed' ? 6 : (matchingReq.status === 'In Transit' ? 5 : 2),
+    handoverMethod: matchingReq.handoverMethod || 'Intercity Courier Delivery',
+    initiatedDate: matchingReq.date || 'Recent',
+    completedDate: matchingReq.completedAt || null,
+    itemA: {
+      title: matchingReq.offeredItem?.title || 'Offered Item',
+      image: matchingReq.offeredItem?.image,
+      ownerCity: matchingReq.offeredItem?.city,
+      ownerName: currentUser?.name || 'You',
+      category: matchingReq.offeredItem?.category || 'General',
+    },
+    itemB: {
+      title: matchingReq.requestedItem?.title || 'Requested Item',
+      image: matchingReq.requestedItem?.image,
+      ownerCity: matchingReq.requestedItem?.city,
+      ownerName: matchingReq.recipient?.name || 'Partner',
+      category: matchingReq.requestedItem?.category || 'General',
+    },
+    partyA: {
+      name: `${currentUser?.name || 'You'} (You)`,
+      city: currentUser?.city || 'Local',
+      phone: currentUser?.phone || '',
+      telegram: currentUser?.telegram || '',
+      viber: currentUser?.viber || currentUser?.phone || '',
+      facebook: currentUser?.facebook || '',
+      courier: 'Royal Express',
+      trackingNumber: '',
+      dispatched: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
+      confirmedReceipt: matchingReq.status === 'Completed',
+    },
+    partyB: {
+      name: matchingReq.recipient?.name || 'Partner',
+      city: matchingReq.recipient?.city || 'Local',
+      phone: matchingReq.recipient?.phone || '',
+      telegram: matchingReq.recipient?.telegram || '',
+      viber: matchingReq.recipient?.viber || matchingReq.recipient?.phone || '',
+      facebook: matchingReq.recipient?.facebook || '',
+      avatar: matchingReq.recipient?.avatar,
+      courier: 'Elite Cargo Express',
+      trackingNumber: '',
+      dispatched: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
+      confirmedReceipt: matchingReq.status === 'Completed',
+    },
+    deposits: {
+      partyA: {
+        itemTitle: matchingReq.offeredItem?.title || 'Offered Item',
+        category: matchingReq.offeredItem?.category || 'General',
+        amount: 50000,
+        status: (matchingReq.status === 'Completed' || matchingReq.status === 'In Transit') ? 'Verified' : 'Unpaid',
+        paymentMethod: null,
+        referenceNumber: '',
+      },
+      partyB: {
+        itemTitle: matchingReq.requestedItem?.title || 'Requested Item',
+        category: matchingReq.requestedItem?.category || 'General',
+        amount: 50000,
+        status: (matchingReq.status === 'Completed' || matchingReq.status === 'In Transit') ? 'Verified' : 'Unpaid',
+        paymentMethod: null,
+        referenceNumber: '',
+      },
+    },
+    courierArrangement: {
+      confirmed: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
+      confirmedAt: null,
+    },
+    refundWorkflow: {
+      initiated: matchingReq.status === 'Completed',
+      status: matchingReq.status === 'Completed' ? 'Refund Processed' : 'Locked',
+    },
+  } : (exchanges[0] ? {
+    ...exchanges[0],
+    id: cleanId ? (cleanId.toUpperCase().startsWith('EXC-') ? cleanId.toUpperCase() : ('EXC-' + cleanId)) : exchanges[0].id
+  } : {
+    id: cleanId ? (cleanId.toUpperCase().startsWith('EXC-') ? cleanId.toUpperCase() : ('EXC-' + cleanId)) : 'EXC-NEW',
+    status: 'Deposit Payment Required',
+    isIntercity: true,
+    intercityStage: 2,
+    handoverMethod: 'Intercity Courier Delivery',
+    initiatedDate: 'Recent',
+    deposits: {
+      partyA: { itemTitle: 'Your Item', category: 'General', amount: 50000, status: 'Unpaid' },
+      partyB: { itemTitle: 'Partner Item', category: 'General', amount: 50000, status: 'Unpaid' }
+    },
+    partyA: { name: 'You', city: 'Local', dispatched: false, confirmedReceipt: false, trackingNumber: '' },
+    partyB: { name: 'Partner', city: 'Local', dispatched: false, confirmedReceipt: false, trackingNumber: '' }
+  }));
 
   const isIntercity = Boolean(
     exchange.isIntercity ||
@@ -60,26 +167,26 @@ export default function ExchangeDetailsPage() {
   // Fallback safe deposit structure if exchange was initialized prior to deposit updates
   const myDeposit = exchange.deposits?.partyA || {
     itemTitle: exchange.itemA?.title || 'Your Item',
-    category: exchange.itemA?.category || 'Electronics',
-    amount: 100000,
-    status: exchange.status === 'Completed' || exchange.status === 'In Transit' ? 'Verified' : 'Unpaid',
-    paymentMethod: 'KBZPay',
-    referenceNumber: 'KBZ-491204',
-    slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
-    submittedAt: 'Today',
-    verifiedAt: exchange.status === 'Completed' || exchange.status === 'In Transit' ? 'Today' : null
+    category: exchange.itemA?.category || 'General',
+    amount: 50000,
+    status: exchange.status === 'Completed' ? 'Verified' : 'Unpaid',
+    paymentMethod: null,
+    referenceNumber: '',
+    slipImage: null,
+    submittedAt: null,
+    verifiedAt: exchange.status === 'Completed' ? 'Today' : null
   };
 
   const otherDeposit = exchange.deposits?.partyB || {
     itemTitle: exchange.itemB?.title || 'Partner Item',
-    category: exchange.itemB?.category || 'Electronics',
-    amount: 100000,
-    status: exchange.status === 'Completed' || exchange.status === 'In Transit' ? 'Verified' : 'Payment Submitted',
-    paymentMethod: 'WavePay',
-    referenceNumber: 'WAVE-819441',
-    slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
-    submittedAt: 'Today',
-    verifiedAt: exchange.status === 'Completed' || exchange.status === 'In Transit' ? 'Today' : null
+    category: exchange.itemB?.category || 'General',
+    amount: 50000,
+    status: exchange.status === 'Completed' ? 'Verified' : 'Unpaid',
+    paymentMethod: null,
+    referenceNumber: '',
+    slipImage: null,
+    submittedAt: null,
+    verifiedAt: exchange.status === 'Completed' ? 'Today' : null
   };
 
   const bothDepositsVerified = Boolean(myDeposit.status === 'Verified' && otherDeposit.status === 'Verified');
@@ -280,6 +387,15 @@ export default function ExchangeDetailsPage() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
+  const handleSimulatePartnerReceipt = async () => {
+    confirmReceipt(exchange.id, 'partyB', 'Partner verified parcel condition.');
+    setToastMessage({
+      title: 'Partner Delivery Confirmed!',
+      text: 'Partner confirmed delivery. Dual confirmation complete — State 6 Escrow Refund is now unlocked!'
+    });
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
   // State 6: Submit Refund Request (User enters their account number)
   const handleSubmitRefund = async (e) => {
     e.preventDefault();
@@ -353,22 +469,42 @@ export default function ExchangeDetailsPage() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
-  // Partner Communication Profile
-  const partnerContacts = exchange.partyB?.communicationContacts || {
-    telegram: '@kyawzin_htet',
-    viber: '09450987654',
-    facebook: 'https://facebook.com/kyawzin.htet',
-    alternative: 'Signal: +959450987654',
-    preferredMethod: 'telegram'
+  // Helper to extract clean communication contacts without mock fallbacks
+  const extractUserContacts = (userObj) => {
+    if (!userObj) return { telegram: '', viber: '', facebook: '', preferredMethod: 'viber' };
+    const rawList = Array.isArray(userObj.communication_contacts) 
+      ? userObj.communication_contacts 
+      : (Array.isArray(userObj.communicationContacts) ? userObj.communicationContacts : []);
+    
+    const obj = (typeof userObj.communicationContacts === 'object' && !Array.isArray(userObj.communicationContacts))
+      ? userObj.communicationContacts
+      : {};
+
+    const telegram = userObj.telegram 
+      || obj.telegram 
+      || rawList.find(c => c.platform?.toLowerCase() === 'telegram')?.contact_value 
+      || '';
+
+    const viber = userObj.viber 
+      || obj.viber 
+      || rawList.find(c => c.platform?.toLowerCase() === 'viber')?.contact_value 
+      || userObj.phone 
+      || '';
+
+    const facebook = userObj.facebook 
+      || obj.facebook 
+      || rawList.find(c => c.platform?.toLowerCase().includes('facebook') || c.platform?.toLowerCase().includes('messenger'))?.contact_value 
+      || '';
+
+    const preferred = obj.preferredMethod 
+      || rawList.find(c => c.is_preferred)?.platform?.toLowerCase() 
+      || (telegram ? 'telegram' : 'viber');
+
+    return { telegram, viber, facebook, preferredMethod: preferred };
   };
 
-  const myContacts = currentUser?.communicationContacts || {
-    telegram: '@thantzin_mdy',
-    viber: currentUser?.phone || '09798123456',
-    facebook: 'https://facebook.com/thantzin.mdy',
-    alternative: '',
-    preferredMethod: 'viber'
-  };
+  const partnerContacts = extractUserContacts(exchange.partyB || exchange.recipient || exchange.requester);
+  const myContacts = extractUserContacts(currentUser);
 
   return (
     <div className="py-8 bg-[#F9F6F0] min-h-[85vh]">
@@ -585,26 +721,12 @@ export default function ExchangeDetailsPage() {
                 </p>
               </div>
 
-              {/* Simulation Testing Shortcuts */}
-              <div className="flex flex-wrap items-center gap-2">
-                {myDeposit.status !== 'Verified' && (
-                  <button
-                    onClick={handleSimulateVerifyMyDeposit}
-                    className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
-                    title="Simulate administrator approving your deposit"
-                  >
-                    ⚡ Test: Verify My Deposit
-                  </button>
-                )}
-                {otherDeposit.status !== 'Verified' && (
-                  <button
-                    onClick={handleSimulateVerifyOtherDeposit}
-                    className="px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                    title="Simulate partner paying and getting verified"
-                  >
-                    ⚡ Test: Verify Partner Deposit
-                  </button>
-                )}
+              {/* Escrow Status Verification Notice */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#5C4033] bg-[#F5F0EB] px-3 py-1 rounded-full border border-[#DDD1BF] flex items-center gap-1.5 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                  Admin Verification Required
+                </span>
               </div>
             </div>
 
@@ -826,15 +948,15 @@ export default function ExchangeDetailsPage() {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-[#7360F2] text-white flex items-center justify-center text-xs font-bold">
-                          K
+                          {exchange.partyB?.name?.charAt(0)?.toUpperCase() || 'P'}
                         </div>
                         <div>
-                          <div className="font-bold text-xs text-[#2C1D15]">{exchange.partyB?.name || 'Kyaw Zin Htet'}</div>
-                          <div className="text-[11px] text-[#8C7A6B]">Exchange Partner ({exchange.partyB?.city || 'Yangon'})</div>
+                          <div className="font-bold text-xs text-[#2C1D15]">{exchange.partyB?.name || 'Partner'}</div>
+                          <div className="text-[11px] text-[#8C7A6B]">Exchange Partner ({exchange.partyB?.city || 'Local'})</div>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE5FC] text-[#5B41C7] border border-[#DDD1BF]">
-                        ⭐ Preferred: {partnerContacts.preferredMethod ? partnerContacts.preferredMethod.toUpperCase() : 'TELEGRAM'}
+                        ⭐ Preferred: {partnerContacts.preferredMethod ? partnerContacts.preferredMethod.toUpperCase() : 'EXTERNAL'}
                       </span>
                     </div>
 
@@ -843,80 +965,98 @@ export default function ExchangeDetailsPage() {
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#229ED9] font-bold">✈ Telegram:</span>
-                          <span className="font-mono text-[#2C1D15]">{partnerContacts.telegram || '@kyawzin_htet'}</span>
+                          {partnerContacts.telegram ? (
+                            <span className="font-mono text-[#2C1D15]">{partnerContacts.telegram}</span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not provided by partner</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleCopy(partnerContacts.telegram || '@kyawzin_htet', 'partner_telegram')}
-                            className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
-                            title="Copy handle"
-                          >
-                            {copiedField === 'partner_telegram' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          <a
-                            href={`https://t.me/${(partnerContacts.telegram || 'kyawzin_htet').replace('@', '')}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-[#229ED9] text-white rounded text-[11px] font-semibold hover:bg-[#1b88bd] inline-flex items-center gap-1"
-                          >
-                            <span>Open</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
+                        {partnerContacts.telegram && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleCopy(partnerContacts.telegram, 'partner_telegram')}
+                              className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
+                              title="Copy handle"
+                            >
+                              {copiedField === 'partner_telegram' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <a
+                              href={`https://t.me/${partnerContacts.telegram.replace('@', '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 bg-[#229ED9] text-white rounded text-[11px] font-semibold hover:bg-[#1b88bd] inline-flex items-center gap-1"
+                            >
+                              <span>Open</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
                       </div>
 
                       {/* Viber */}
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#7360F2] font-bold">💬 Viber:</span>
-                          <span className="font-mono text-[#2C1D15]">{partnerContacts.viber || '09450987654'}</span>
+                          {partnerContacts.viber ? (
+                            <span className="font-mono text-[#2C1D15]">{partnerContacts.viber}</span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not provided by partner</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleCopy(partnerContacts.viber || '09450987654', 'partner_viber')}
-                            className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
-                            title="Copy number"
-                          >
-                            {copiedField === 'partner_viber' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          <a
-                            href={`viber://chat?number=${partnerContacts.viber || '09450987654'}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-[#7360F2] text-white rounded text-[11px] font-semibold hover:bg-[#5f4cd6] inline-flex items-center gap-1"
-                          >
-                            <span>Chat</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
+                        {partnerContacts.viber && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleCopy(partnerContacts.viber, 'partner_viber')}
+                              className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
+                              title="Copy number"
+                            >
+                              {copiedField === 'partner_viber' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <a
+                              href={`viber://chat?number=${partnerContacts.viber}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 bg-[#7360F2] text-white rounded text-[11px] font-semibold hover:bg-[#5f4cd6] inline-flex items-center gap-1"
+                            >
+                              <span>Chat</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
                       </div>
 
                       {/* Facebook Messenger */}
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#1877F2] font-bold">👤 Messenger:</span>
-                          <span className="font-mono text-[#2C1D15] text-[11px] truncate max-w-[130px]">
-                            {partnerContacts.facebook || 'kyawzin.htet'}
-                          </span>
+                          {partnerContacts.facebook ? (
+                            <span className="font-mono text-[#2C1D15] text-[11px] truncate max-w-[130px]">
+                              {partnerContacts.facebook}
+                            </span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not provided by partner</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleCopy(partnerContacts.facebook || 'https://facebook.com/kyawzin.htet', 'partner_fb')}
-                            className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
-                            title="Copy link"
-                          >
-                            {copiedField === 'partner_fb' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          <a
-                            href={partnerContacts.facebook?.startsWith('http') ? partnerContacts.facebook : `https://${partnerContacts.facebook || 'facebook.com/kyawzin.htet'}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 bg-[#1877F2] text-white rounded text-[11px] font-semibold hover:bg-[#0f60c4] inline-flex items-center gap-1"
-                          >
-                            <span>Profile</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
+                        {partnerContacts.facebook && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleCopy(partnerContacts.facebook, 'partner_fb')}
+                              className="p-1 text-[#8C7A6B] hover:text-[#2C1D15] rounded hover:bg-[#F9F6F0]"
+                              title="Copy link"
+                            >
+                              {copiedField === 'partner_fb' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <a
+                              href={partnerContacts.facebook.startsWith('http') ? partnerContacts.facebook : `https://${partnerContacts.facebook}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 bg-[#1877F2] text-white rounded text-[11px] font-semibold hover:bg-[#0f60c4] inline-flex items-center gap-1"
+                            >
+                              <span>Profile</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -926,7 +1066,7 @@ export default function ExchangeDetailsPage() {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-[#5C4033] text-white flex items-center justify-center text-xs font-bold">
-                          {currentUser?.name?.charAt(0) || 'T'}
+                          {currentUser?.name?.charAt(0)?.toUpperCase() || 'M'}
                         </div>
                         <div>
                           <div className="font-bold text-xs text-[#2C1D15]">My Contact Details</div>
@@ -945,27 +1085,45 @@ export default function ExchangeDetailsPage() {
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#229ED9] font-bold">✈ Telegram:</span>
-                          <span className="font-mono text-[#2C1D15]">{myContacts.telegram || '@thantzin_mdy'}</span>
+                          {myContacts.telegram ? (
+                            <span className="font-mono text-[#2C1D15]">{myContacts.telegram}</span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not configured</span>
+                          )}
                         </div>
-                        <span className="text-[11px] text-[#8C7A6B]">Active</span>
+                        <span className={`text-[11px] font-medium ${myContacts.telegram ? 'text-emerald-700' : 'text-[#8C7A6B]'}`}>
+                          {myContacts.telegram ? 'Active' : 'Unset'}
+                        </span>
                       </div>
 
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#7360F2] font-bold">💬 Viber:</span>
-                          <span className="font-mono text-[#2C1D15]">{myContacts.viber || '09798123456'}</span>
+                          {myContacts.viber ? (
+                            <span className="font-mono text-[#2C1D15]">{myContacts.viber}</span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not configured</span>
+                          )}
                         </div>
-                        <span className="text-[11px] text-[#8C7A6B]">Active</span>
+                        <span className={`text-[11px] font-medium ${myContacts.viber ? 'text-emerald-700' : 'text-[#8C7A6B]'}`}>
+                          {myContacts.viber ? 'Active' : 'Unset'}
+                        </span>
                       </div>
 
                       <div className="p-2.5 rounded-lg bg-white border border-[#EBE2D8] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-[#1877F2] font-bold">👤 Messenger:</span>
-                          <span className="font-mono text-[#2C1D15] text-[11px] truncate max-w-[140px]">
-                            {myContacts.facebook || 'facebook.com/thantzin.mdy'}
-                          </span>
+                          {myContacts.facebook ? (
+                            <span className="font-mono text-[#2C1D15] text-[11px] truncate max-w-[140px]">
+                              {myContacts.facebook}
+                            </span>
+                          ) : (
+                            <span className="text-[#8C7A6B] italic font-normal">Not configured</span>
+                          )}
                         </div>
-                        <span className="text-[11px] text-[#8C7A6B]">Active</span>
+                        <span className={`text-[11px] font-medium ${myContacts.facebook ? 'text-emerald-700' : 'text-[#8C7A6B]'}`}>
+                          {myContacts.facebook ? 'Active' : 'Unset'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -999,15 +1157,6 @@ export default function ExchangeDetailsPage() {
                   Record tracking numbers and upload receipt slips so both sides and the platform can monitor freight progress.
                 </p>
               </div>
-
-              {!exchange.partyB?.dispatched && (
-                <button
-                  onClick={handleSimulatePartnerDispatch}
-                  className="px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
-                >
-                  ⚡ Test: Partner Dispatches Parcel
-                </button>
-              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1191,8 +1340,8 @@ export default function ExchangeDetailsPage() {
                   </div>
                 ) : (
                   <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-600" />
-                    <span>Awaiting partner to confirm arrival in Yangon.</span>
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Awaiting partner to confirm arrival & parcel inspection.</span>
                   </div>
                 )}
               </div>
@@ -1227,14 +1376,12 @@ export default function ExchangeDetailsPage() {
                 </p>
               </div>
 
-              {myRefund.status === 'Processing Payout' && (
-                <button
-                  onClick={handleSimulateCompleteRefund}
-                  className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
-                >
-                  ⚡ Test: Admin Process & Release Refund
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#5C4033] bg-[#F5F0EB] px-3 py-1 rounded-full border border-[#DDD1BF] font-medium flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                  100% Escrow Guarantee
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1495,9 +1642,9 @@ export default function ExchangeDetailsPage() {
       {/* MODAL 1: PAY DEPOSIT MODAL (State 2)                     */}
       {/* ======================================================== */}
       {showPayDepositModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDD1BF] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 border-b border-[#EBE2D8] flex items-center justify-between bg-[#F9F6F0]">
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/65 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDD1BF] shadow-2xl my-auto max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-[#EBE2D8] flex items-center justify-between bg-[#F9F6F0] shrink-0">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-700" />
                 <h4 className="font-serif font-bold text-sm text-[#2C1D15]">
@@ -1506,13 +1653,13 @@ export default function ExchangeDetailsPage() {
               </div>
               <button
                 onClick={() => setShowPayDepositModal(false)}
-                className="text-[#8C7A6B] hover:text-[#2C1D15]"
+                className="text-[#8C7A6B] hover:text-[#2C1D15] p-1 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handlePayDepositSubmit} className="p-5 space-y-4">
+            <form onSubmit={handlePayDepositSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#EBE2D8] text-xs text-[#5C4033] leading-relaxed">
                 Deposit amount is determined by your offered item's category (<strong>{myDeposit.category}</strong>). Your funds are held securely in platform escrow and refunded 100% after dual delivery confirmation.
               </div>
@@ -1607,7 +1754,7 @@ export default function ExchangeDetailsPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8] shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowPayDepositModal(false)}
@@ -1632,9 +1779,9 @@ export default function ExchangeDetailsPage() {
       {/* MODAL 2: COURIER DISPATCH & WAYBILL (State 4)            */}
       {/* ======================================================== */}
       {showDispatchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDD1BF] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 border-b border-[#EBE2D8] flex items-center justify-between bg-[#F9F6F0]">
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/65 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDD1BF] shadow-2xl my-auto max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-[#EBE2D8] flex items-center justify-between bg-[#F9F6F0] shrink-0">
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-indigo-700" />
                 <h4 className="font-serif font-bold text-sm text-[#2C1D15]">
@@ -1643,13 +1790,13 @@ export default function ExchangeDetailsPage() {
               </div>
               <button
                 onClick={() => setShowDispatchModal(false)}
-                className="text-[#8C7A6B] hover:text-[#2C1D15]"
+                className="text-[#8C7A6B] hover:text-[#2C1D15] p-1 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveDispatch} className="p-5 space-y-4">
+            <form onSubmit={handleSaveDispatch} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
                   Courier Company Name <span className="text-rose-600">*</span>
@@ -1733,7 +1880,7 @@ export default function ExchangeDetailsPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8] shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowDispatchModal(false)}
@@ -1757,9 +1904,9 @@ export default function ExchangeDetailsPage() {
       {/* MODAL 3: REPORT DISPUTE MODAL                            */}
       {/* ======================================================== */}
       {showDisputeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-rose-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50">
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/65 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-rose-200 shadow-2xl my-auto max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50 shrink-0">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-rose-600" />
                 <h4 className="font-serif font-bold text-sm text-rose-900">
@@ -1768,13 +1915,13 @@ export default function ExchangeDetailsPage() {
               </div>
               <button
                 onClick={() => setShowDisputeModal(false)}
-                className="text-rose-400 hover:text-rose-700"
+                className="text-rose-400 hover:text-rose-700 p-1 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleFileDispute} className="p-5 space-y-4">
+            <form onSubmit={handleFileDispute} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
                   Category of Incident
@@ -1837,7 +1984,7 @@ export default function ExchangeDetailsPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8] shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowDisputeModal(false)}
@@ -1862,7 +2009,7 @@ export default function ExchangeDetailsPage() {
       {/* ======================================================== */}
       {previewImageModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs"
+          className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs"
           onClick={() => setPreviewImageModal(null)}
         >
           <div className="relative max-w-3xl max-h-[85vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>

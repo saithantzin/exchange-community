@@ -45,7 +45,7 @@ export default function ConfirmModal({
   const Icon = config.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#EBE2D8] space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">

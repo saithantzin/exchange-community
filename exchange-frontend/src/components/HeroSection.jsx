@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useExchange } from '../context/ExchangeContext';
+import authService from '../services/authService';
 
 export default function HeroSection({
   searchQuery,
@@ -14,6 +16,18 @@ export default function HeroSection({
   onOpenListModal,
   onBrowseItemsClick
 }) {
+  const { categories } = useExchange();
+  const [locations, setLocations] = useState([]);
+
+  useEffect(() => {
+    authService.getLocations()
+      .then(res => {
+        if (res?.success && Array.isArray(res.data)) {
+          setLocations(res.data);
+        }
+      })
+      .catch(err => console.warn('Could not load locations:', err));
+  }, []);
   return (
     <section id="home" className="py-5" style={{ backgroundColor: 'var(--bg-warm)' }}>
       <div className="container-xl">
@@ -225,7 +239,7 @@ export default function HeroSection({
                 </div>
               </div>
 
-              {/* Category Dropdown */}
+              {/* Category Dropdown (Dynamic from Database) */}
               <div className="col-6 col-md-2">
                 <label className="form-label text-muted small fw-semibold mb-2">Category</label>
                 <select
@@ -234,12 +248,20 @@ export default function HeroSection({
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
                   <option value="all">All Categories</option>
-                  <option value="electronics">Electronics</option>
-                  <option value="books">Books</option>
-                  <option value="clothing">Clothing</option>
-                  <option value="household">Household Items</option>
-                  <option value="furniture">Furniture</option>
-                  <option value="other">Other Items</option>
+                  {categories && categories.length > 0 ? (
+                    categories.map(c => (
+                      <option key={c.id} value={c.slug || c.id}>
+                        {c.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="electronics">Electronics & Gadgets</option>
+                      <option value="books">Books</option>
+                      <option value="clothing">Clothing</option>
+                      <option value="furniture">Furniture</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -260,7 +282,7 @@ export default function HeroSection({
                 </select>
               </div>
 
-              {/* City Dropdown */}
+              {/* City Dropdown (Dynamic from Database) */}
               <div className="col-6 col-md-2">
                 <label className="form-label text-muted small fw-semibold mb-2">Location / City</label>
                 <select
@@ -268,16 +290,17 @@ export default function HeroSection({
                   value={selectedCity}
                   onChange={(e) => setSelectedCity(e.target.value)}
                 >
-                  <option value="all">All Cities (Nationwide)</option>
-                  <option value="YGN">Yangon (YGN)</option>
-                  <option value="MDY">Mandalay (MDY)</option>
+                  <option value="all">All Locations (Nationwide)</option>
+                  <option value="MDY">Mandalay Region (MDY)</option>
+                  <option value="YGN">Yangon Region (YGN)</option>
                   <option value="NPT">Naypyitaw (NPT)</option>
-                  <option value="TGI">Taunggyi (TGI)</option>
-                  <option value="MLM">Mawlamyine (MLM)</option>
-                  <option value="BGO">Bago (BGO)</option>
-                  <option value="MON">Monywa (MON)</option>
-                  <option value="PTH">Pathein (PTH)</option>
-                  <option value="POL">Pyin Oo Lwin (POL)</option>
+                  {locations
+                    .filter(loc => !['Yangon', 'Mandalay', 'Naypyitaw'].some(k => loc.name.includes(k)))
+                    .map(loc => (
+                      <option key={loc.id} value={loc.name}>
+                        {loc.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 

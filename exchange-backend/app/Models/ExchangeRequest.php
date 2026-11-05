@@ -69,4 +69,9 @@ class ExchangeRequest extends Model
     {
         return $this->hasMany(Dispute::class, 'exchange_id');
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class, 'exchange_id');
+    }
 }
