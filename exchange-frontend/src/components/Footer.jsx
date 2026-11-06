@@ -101,7 +101,7 @@ export default function Footer() {
           </div>
 
           {/* Col 2: Categories */}
-          <div className="col-6 col-md-3 col-lg-2">
+          <div className="col-6 col-md-4 col-lg-2">
             <h6 className="footer-title">Browse Items</h6>
             <Link to="/browse?cat=electronics" className="footer-link">Electronics</Link>
             <Link to="/browse?cat=books" className="footer-link">Books & Study</Link>
@@ -112,7 +112,7 @@ export default function Footer() {
           </div>
 
           {/* Col 3: Public Platform Links */}
-          <div className="col-6 col-md-3 col-lg-2">
+          <div className="col-6 col-md-4 col-lg-3">
             <h6 className="footer-title">Platform</h6>
             <Link to="/" className="footer-link">Home</Link>
             <Link to="/browse" className="footer-link">Browse Marketplace</Link>
@@ -123,29 +123,13 @@ export default function Footer() {
           </div>
 
           {/* Col 4: Community & Safety */}
-          <div className="col-6 col-md-3 col-lg-2">
+          <div className="col-6 col-md-4 col-lg-3">
             <h6 className="footer-title">Trust & Policies</h6>
             <Link to="/how-it-works" className="footer-link">In-Person &amp; Courier Rules</Link>
             <Link to="/how-it-works" className="footer-link">Two-Sided Completion</Link>
             <a href="#terms" onClick={(e) => { e.preventDefault(); alert('Terms of Service: Items exchanged must be honest condition with no cash surcharge allowed.'); }} className="footer-link">Terms of Service</a>
             <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: User mobile numbers and precise street addresses are confidential until swap acceptance.'); }} className="footer-link">Privacy Policy</a>
             <Link to="/reports" className="footer-link">Dispute Mediation</Link>
-          </div>
-
-          {/* Col 5: University & About */}
-          <div className="col-6 col-md-3 col-lg-2">
-            <h6 className="footer-title">About Project</h6>
-            <span className="text-muted d-block mb-2" style={{ fontSize: '0.88rem', lineHeight: 1.6 }}>
-              Final-Year University Capstone Project
-            </span>
-            <span className="text-muted d-block mb-3" style={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
-              Tech Stack: React.js, Bootstrap 5, Laravel REST API, MySQL
-            </span>
-            <div className="d-flex gap-2">
-              <span className="btn btn-sm btn-light border p-2" title="GitHub Repository"><i className="bi bi-github"></i></span>
-              <span className="btn btn-sm btn-light border p-2" title="Community Forum"><i className="bi bi-chat-heart"></i></span>
-              <span className="btn btn-sm btn-light border p-2" title="Contact University Hub"><i className="bi bi-envelope"></i></span>
-            </div>
           </div>
         </div>
 
