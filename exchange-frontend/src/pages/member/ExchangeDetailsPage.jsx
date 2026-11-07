@@ -196,8 +196,8 @@ export default function ExchangeDetailsPage() {
   }, [rawExchange, isOwner, cleanId, currentUser]);
 
   const handoverMethodRaw = String(
-    exchange.handoverMethod ||
-    exchange.exchange_type ||
+    exchange?.handoverMethod ||
+    exchange?.exchange_type ||
     matchingReq?.handoverMethod ||
     matchingReq?.exchange_type ||
     ''
@@ -210,59 +210,59 @@ export default function ExchangeDetailsPage() {
                    handoverMethodRaw.includes('local');
 
   const isIntercity = !isMeetup && Boolean(
-    exchange.isIntercity ||
+    exchange?.isIntercity ||
     handoverMethodRaw.includes('courier') ||
     handoverMethodRaw.includes('express') ||
     handoverMethodRaw.includes('intercity') ||
-    (exchange.itemA?.ownerCity && exchange.itemB?.ownerCity && exchange.itemA.ownerCity.trim().toLowerCase() !== exchange.itemB.ownerCity.trim().toLowerCase() && !isMeetup)
+    (exchange?.itemA?.ownerCity && exchange?.itemB?.ownerCity && exchange.itemA.ownerCity.trim().toLowerCase() !== exchange.itemB.ownerCity.trim().toLowerCase() && !isMeetup)
   );
 
   // Fallback safe deposit structure if exchange was initialized prior to deposit updates
-  const myDeposit = exchange.deposits?.partyA || {
-    itemTitle: exchange.itemA?.title || 'Your Item',
-    category: exchange.itemA?.category || 'General',
+  const myDeposit = exchange?.deposits?.partyA || {
+    itemTitle: exchange?.itemA?.title || 'Your Item',
+    category: exchange?.itemA?.category || 'General',
     amount: 50000,
-    status: exchange.status === 'Completed' ? 'Verified' : 'Unpaid',
+    status: exchange?.status === 'Completed' ? 'Verified' : 'Unpaid',
     paymentMethod: null,
     referenceNumber: '',
     slipImage: null,
     submittedAt: null,
-    verifiedAt: exchange.status === 'Completed' ? 'Today' : null
+    verifiedAt: exchange?.status === 'Completed' ? 'Today' : null
   };
 
-  const otherDeposit = exchange.deposits?.partyB || {
-    itemTitle: exchange.itemB?.title || 'Partner Item',
-    category: exchange.itemB?.category || 'General',
+  const otherDeposit = exchange?.deposits?.partyB || {
+    itemTitle: exchange?.itemB?.title || 'Partner Item',
+    category: exchange?.itemB?.category || 'General',
     amount: 50000,
-    status: exchange.status === 'Completed' ? 'Verified' : 'Unpaid',
+    status: exchange?.status === 'Completed' ? 'Verified' : 'Unpaid',
     paymentMethod: null,
     referenceNumber: '',
     slipImage: null,
     submittedAt: null,
-    verifiedAt: exchange.status === 'Completed' ? 'Today' : null
+    verifiedAt: exchange?.status === 'Completed' ? 'Today' : null
   };
 
   const bothDepositsVerified = Boolean(myDeposit.status === 'Verified' && otherDeposit.status === 'Verified');
-  const isArrangementConfirmed = Boolean(exchange.courierArrangement?.confirmed || exchange.partyA?.dispatched || exchange.partyB?.dispatched || exchange.isCompleted);
-  const bothReceiptsConfirmed = Boolean(exchange.partyA?.confirmedReceipt && exchange.partyB?.confirmedReceipt);
+  const isArrangementConfirmed = Boolean(exchange?.courierArrangement?.confirmed || exchange?.partyA?.dispatched || exchange?.partyB?.dispatched || exchange?.isCompleted);
+  const bothReceiptsConfirmed = Boolean(exchange?.partyA?.confirmedReceipt && exchange?.partyB?.confirmedReceipt);
 
   // State 6: Refund Workflow details
-  const myRefund = exchange.refundWorkflow?.partyA || {
+  const myRefund = exchange?.refundWorkflow?.partyA || {
     amount: myDeposit.amount || 100000,
     walletType: 'KBZPay',
     accountNumber: '',
     accountName: '',
-    status: exchange.isCompleted ? 'Pending Details' : 'Awaiting Receipt Confirmation',
+    status: exchange?.isCompleted ? 'Pending Details' : 'Awaiting Receipt Confirmation',
     requestedAt: null,
     transactionRef: null
   };
 
-  const otherRefund = exchange.refundWorkflow?.partyB || {
+  const otherRefund = exchange?.refundWorkflow?.partyB || {
     amount: otherDeposit.amount || 100000,
     walletType: 'WavePay',
     accountNumber: '09450987654',
     accountName: 'Kyaw Zin Htet',
-    status: exchange.isCompleted ? 'Processing Payout' : 'Awaiting Receipt Confirmation',
+    status: exchange?.isCompleted ? 'Processing Payout' : 'Awaiting Receipt Confirmation',
     requestedAt: 'Today',
     transactionRef: null
   };
@@ -270,8 +270,8 @@ export default function ExchangeDetailsPage() {
   // Compute current Intercity stage (1 to 6)
   const currentStage = (() => {
     if (myRefund.status === 'Completed') return 6;
-    if (bothReceiptsConfirmed || exchange.isCompleted) return 6;
-    if (exchange.partyA?.dispatched || exchange.partyB?.dispatched) return 5;
+    if (bothReceiptsConfirmed || exchange?.isCompleted) return 6;
+    if (exchange?.partyA?.dispatched || exchange?.partyB?.dispatched) return 5;
     if (isArrangementConfirmed) return 4;
     if (bothDepositsVerified) return 3;
     return 2;
@@ -293,10 +293,10 @@ export default function ExchangeDetailsPage() {
 
   // Courier Dispatch Modal State (State 4)
   const [showDispatchModal, setShowDispatchModal] = useState(false);
-  const [courierName, setCourierName] = useState(exchange.partyA?.courier || 'Royal Express');
-  const [trackingNumber, setTrackingNumber] = useState(exchange.partyA?.trackingNumber || '');
+  const [courierName, setCourierName] = useState(exchange?.partyA?.courier || 'Royal Express');
+  const [trackingNumber, setTrackingNumber] = useState(exchange?.partyA?.trackingNumber || '');
   const [shippingDate, setShippingDate] = useState(new Date().toISOString().split('T')[0]);
-  const [receiptImage, setReceiptImage] = useState(exchange.partyA?.receiptImage || '');
+  const [receiptImage, setReceiptImage] = useState(exchange?.partyA?.receiptImage || '');
 
   // State 6: Refund Request Payout Form State
   const [refundWalletType, setRefundWalletType] = useState('KBZPay');
@@ -556,7 +556,7 @@ export default function ExchangeDetailsPage() {
     return { telegram, viber, facebook, preferredMethod: preferred };
   };
 
-  const partnerContacts = extractUserContacts(exchange.partyB || exchange.recipient || exchange.requester);
+  const partnerContacts = extractUserContacts(exchange?.partyB || exchange?.recipient || exchange?.requester);
   const myContacts = extractUserContacts(currentUser);
 
   if (apiLoading && !exchange) {
