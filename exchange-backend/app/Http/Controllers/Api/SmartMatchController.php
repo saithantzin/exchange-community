@@ -131,9 +131,13 @@ class SmartMatchController extends Controller
             }
         }
 
-        // Filter by minimum score threshold (default >= 75% high rating matches)
-        $minScore = (int) $request->input('min_score', 75);
-        $matches = array_values(array_filter($matches, fn($m) => $m['matchScore'] >= $minScore));
+        // Filter by minimum score threshold (default >= 60% for relevant community pairings)
+        $minScore = (int) $request->input('min_score', 60);
+        $filtered = array_values(array_filter($matches, fn($m) => $m['matchScore'] >= $minScore));
+        if (empty($filtered) && !empty($matches) && $userItems->isNotEmpty()) {
+            $filtered = $matches;
+        }
+        $matches = $filtered;
 
         // Sort by matchScore descending (highest match first)
         usort($matches, fn($a, $b) => $b['matchScore'] <=> $a['matchScore']);

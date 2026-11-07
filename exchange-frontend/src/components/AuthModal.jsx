@@ -6,6 +6,8 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onLog
   const [activeTab, setActiveTab] = useState(initialTab);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [name, setName] = useState('');
   const [city, setCity] = useState('Mandalay (MDY)');
   const [phone, setPhone] = useState('');
@@ -131,14 +133,29 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onLog
                 </div>
                 <div className="mb-3">
                   <label className="form-label small fw-semibold">Password</label>
-                  <input
-                    type="password"
-                    required
-                    className="form-control"
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <div className="input-group">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      className="form-control"
+                      placeholder="Enter password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      tabIndex="-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPassword(prev => !prev);
+                      }}
+                      style={{ borderColor: '#ced4da' }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                    </button>
+                  </div>
                 </div>
                 <button type="submit" className="btn-nordic-primary w-100 py-2 mt-2">
                   Log In to Platform
@@ -194,14 +211,29 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login', onLog
                 </div>
                 <div className="mb-3">
                   <label className="form-label small fw-semibold">Create Password</label>
-                  <input
-                    type="password"
-                    required
-                    className="form-control"
-                    placeholder="At least 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <div className="input-group">
+                    <input
+                      type={showRegisterPassword ? 'text' : 'password'}
+                      required
+                      className="form-control"
+                      placeholder="At least 6 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      tabIndex="-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowRegisterPassword(prev => !prev);
+                      }}
+                      style={{ borderColor: '#ced4da' }}
+                      title={showRegisterPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`bi ${showRegisterPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                    </button>
+                  </div>
                 </div>
                 <button type="submit" className="btn-nordic-primary w-100 py-2">
                   Create Member Account

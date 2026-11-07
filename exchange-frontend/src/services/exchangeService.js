@@ -84,6 +84,13 @@ export const exchangeService = {
     return res.data;
   },
 
+  // Complete an exchange (In-Person Handover or Courier receipt)
+  async completeExchange(exchangeId, payload = {}) {
+    const cleanId = String(exchangeId).replace(/^EXC-/, '').trim();
+    const res = await api.post(`/exchange-requests/${cleanId}/complete`, payload);
+    return res.data;
+  },
+
   // Admin: Get single exchange with real deposits & workflow
   async adminGetExchange(id) {
     const res = await api.get(`/admin/exchanges/${id}`);

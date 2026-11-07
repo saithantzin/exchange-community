@@ -11,6 +11,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -95,20 +96,30 @@ export default function LoginPage() {
                 </div>
 
                 <div className="mb-3">
-                  <div className="d-flex justify-content-between">
-                    <label className="form-label small fw-semibold text-dark">Password</label>
-                    <a href="#forgot" onClick={(e) => { e.preventDefault(); alert('Password reset link sent to demo registered email.'); }} className="text-decoration-none small text-muted">
-                      Forgot?
-                    </a>
+                  <label className="form-label small fw-semibold text-dark mb-1">Password</label>
+                  <div className="input-group">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      className="form-control"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      tabIndex="-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPassword(prev => !prev);
+                      }}
+                      style={{ borderColor: '#ced4da' }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                    </button>
                   </div>
-                  <input
-                    type="password"
-                    required
-                    className="form-control"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
                 </div>
 
                 <div className="form-check mb-4">

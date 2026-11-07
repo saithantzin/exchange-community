@@ -12,6 +12,8 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileImage, setProfileImage] = useState('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -302,26 +304,56 @@ export default function RegisterPage() {
                   {/* Password & Confirm */}
                   <div className="col-md-6">
                     <label className="form-label small fw-semibold text-dark">Password <span className="text-danger">*</span></label>
-                    <input
-                      type="password"
-                      required
-                      className="form-control"
-                      placeholder="Min. 6 characters"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
+                    <div className="input-group">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        className="form-control"
+                        placeholder="Min. 6 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        tabIndex="-1"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowPassword(prev => !prev);
+                        }}
+                        style={{ borderColor: '#ced4da' }}
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="col-md-6">
                     <label className="form-label small fw-semibold text-dark">Confirm Password <span className="text-danger">*</span></label>
-                    <input
-                      type="password"
-                      required
-                      className="form-control"
-                      placeholder="Re-type password"
-                      value={passwordConfirm}
-                      onChange={(e) => setPasswordConfirm(e.target.value)}
-                    />
+                    <div className="input-group">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        className="form-control"
+                        placeholder="Re-type password"
+                        value={passwordConfirm}
+                        onChange={(e) => setPasswordConfirm(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        tabIndex="-1"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowConfirmPassword(prev => !prev);
+                        }}
+                        style={{ borderColor: '#ced4da' }}
+                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <i className={`bi ${showConfirmPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Communication Contact Information Section (Requirement 1) */}

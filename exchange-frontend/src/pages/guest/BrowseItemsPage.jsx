@@ -115,7 +115,7 @@ export default function BrowseItemsPage() {
       const res = await itemService.getItems(params);
 
       if (res?.success && res.data) {
-        const rawItems = res.data.data || [];
+        const rawItems = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
         const formatted = rawItems.map(formatItemFromBackend);
         setItems(formatted);
         setTotalItems(res.data.total || formatted.length);
@@ -429,7 +429,7 @@ export default function BrowseItemsPage() {
                         <span className="fw-bold" style={{ color: 'var(--text-main)', letterSpacing: '0.01em' }}>Trade Wanted:</span>
                       </div>
                       <span className="text-muted text-truncate d-block">
-                        {item.exchangePreference.replace('Looking for: ', '')}
+                        {(item.exchangePreference || 'Open to offers').replace('Looking for: ', '')}
                       </span>
                     </div>
 
@@ -447,7 +447,7 @@ export default function BrowseItemsPage() {
                           }}
                         />
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {item.owner.name.split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner.rating}★</span>
+                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner?.rating || 5.0}★</span>
                         </span>
                       </div>
 

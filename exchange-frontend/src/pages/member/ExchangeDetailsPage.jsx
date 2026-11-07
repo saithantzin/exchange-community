@@ -156,12 +156,26 @@ export default function ExchangeDetailsPage() {
     partyB: { name: 'Partner', city: 'Local', dispatched: false, confirmedReceipt: false, trackingNumber: '' }
   }));
 
-  const isIntercity = Boolean(
+  const handoverMethodRaw = String(
+    exchange.handoverMethod ||
+    exchange.exchange_type ||
+    matchingReq?.handoverMethod ||
+    matchingReq?.exchange_type ||
+    ''
+  ).toLowerCase();
+
+  const isMeetup = handoverMethodRaw.includes('meetup') ||
+                   handoverMethodRaw.includes('in-person') ||
+                   handoverMethodRaw.includes('in person') ||
+                   handoverMethodRaw.includes('face-to-face') ||
+                   handoverMethodRaw.includes('local');
+
+  const isIntercity = !isMeetup && Boolean(
     exchange.isIntercity ||
-    exchange.handoverMethod?.toLowerCase().includes('courier') ||
-    exchange.handoverMethod?.toLowerCase().includes('express') ||
-    (exchange.partyA && exchange.partyB) ||
-    (exchange.itemA?.ownerCity && exchange.itemB?.ownerCity && exchange.itemA.ownerCity !== exchange.itemB.ownerCity)
+    handoverMethodRaw.includes('courier') ||
+    handoverMethodRaw.includes('express') ||
+    handoverMethodRaw.includes('intercity') ||
+    (exchange.itemA?.ownerCity && exchange.itemB?.ownerCity && exchange.itemA.ownerCity.trim().toLowerCase() !== exchange.itemB.ownerCity.trim().toLowerCase() && !isMeetup)
   );
 
   // Fallback safe deposit structure if exchange was initialized prior to deposit updates
@@ -565,6 +579,89 @@ export default function ExchangeDetailsPage() {
             </button>
           </div>
         </div>
+
+        {/* ======================================================== */}
+        {/* IN-PERSON MEETUP 4-STAGE STEPPER                          */}
+        {/* ======================================================== */}
+        {!isIntercity && (
+          <div className="bg-white rounded-2xl border border-[#DDD1BF] p-5 sm:p-6 mb-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-[#8C7A6B] uppercase tracking-wider flex items-center gap-1.5">
+                <Box className="w-4 h-4 text-[#5C4033]" />
+                In-Person Meetup Protocol Stepper
+              </h2>
+              <span className="text-[11px] font-semibold text-[#5C4033] bg-[#F9F6F0] px-2.5 py-0.5 rounded-full border border-[#DDD1BF]">
+                {exchange.isCompleted || exchange.status === 'Completed' ? 'Stage 4 of 4 (Completed)' : 'Stage 2 of 4 (Coordinating)'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+              {/* Stage 1: Accepted */}
+              <div className="p-3 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900">
+                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center mx-auto mb-1.5">
+                  ✓
+                </div>
+                <div className="text-xs font-bold leading-tight">1. Accepted</div>
+                <div className="text-[10px] text-emerald-700 mt-0.5">Proposal Approved</div>
+              </div>
+
+              {/* Stage 2: Coordinate Meetup */}
+              <div className={`p-3 rounded-xl border transition-all ${
+                exchange.isCompleted || exchange.status === 'Completed'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900 ring-2 ring-amber-300'
+              }`}>
+                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
+                  exchange.isCompleted || exchange.status === 'Completed'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-amber-500 text-white'
+                }`}>
+                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '2'}
+                </div>
+                <div className="text-xs font-bold leading-tight">2. Coordinate</div>
+                <div className="text-[10px] mt-0.5">
+                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Coordinated' : 'Contacts Unlocked'}
+                </div>
+              </div>
+
+              {/* Stage 3: Meet & Inspect */}
+              <div className={`p-3 rounded-xl border transition-all ${
+                exchange.isCompleted || exchange.status === 'Completed'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}>
+                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
+                  exchange.isCompleted || exchange.status === 'Completed'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-blue-600 text-white'
+                }`}>
+                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '3'}
+                </div>
+                <div className="text-xs font-bold leading-tight">3. Meet & Inspect</div>
+                <div className="text-[10px] mt-0.5">Face-to-Face Check</div>
+              </div>
+
+              {/* Stage 4: Handover Completed */}
+              <div className={`p-3 rounded-xl border transition-all ${
+                exchange.isCompleted || exchange.status === 'Completed'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 ring-2 ring-emerald-300'
+                  : 'bg-white border-[#EBE2D8] text-[#8C7A6B] opacity-60'
+              }`}>
+                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
+                  exchange.isCompleted || exchange.status === 'Completed'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[#DDD1BF] text-[#5C4033]'
+                }`}>
+                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '4'}
+                </div>
+                <div className="text-xs font-bold leading-tight">4. Handover Done</div>
+                <div className="text-[10px] mt-0.5">
+                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Completed' : 'Pending Swap'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ======================================================== */}
         {/* INTERCITY 6-STAGE PROGRESS STEPPER                        */}
@@ -1561,39 +1658,142 @@ export default function ExchangeDetailsPage() {
         )}
 
         {/* ======================================================== */}
-        {/* LOCAL MEETUP VIEW (Same City)                            */}
+        {/* LOCAL IN-PERSON MEETUP COORDINATION WORKSPACE             */}
         {/* ======================================================== */}
         {!isIntercity && (
-          <div className="bg-white rounded-2xl border border-[#DDD1BF] p-5 sm:p-6 mb-6 shadow-xs">
-            <h3 className="font-serif font-bold text-lg text-[#2C1D15] mb-2 flex items-center gap-2">
-              <Box className="w-5 h-5 text-[#5C4033]" />
-              Same-City In-Person Handover
-            </h3>
-            <p className="text-xs text-[#5C4033] mb-4">
-              Local meetup exchanges do not require deposit payments or courier tracking. Coordinate a safe, well-lit public spot in your city to inspect items directly.
-            </p>
+          <div className="space-y-6 mb-6">
+            {/* Coordination & Contact Card */}
+            <div className="bg-white rounded-2xl border border-[#DDD1BF] p-5 sm:p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-[#EBE2D8] gap-2">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#2C1D15] flex items-center gap-2">
+                    <Box className="w-5 h-5 text-[#5C4033]" />
+                    In-Person Meetup &amp; Handover
+                  </h3>
+                  <p className="text-xs text-[#5C4033] mt-0.5">
+                    No deposit required for in-person handovers. Direct contact details are unlocked so you can coordinate a convenient time and place to inspect and swap items.
+                  </p>
+                </div>
+                <span className="text-xs text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 font-semibold self-start sm:self-auto flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> No Escrow Deposit Needed
+                </span>
+              </div>
 
-            <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#DDD1BF] mb-4">
-              <div className="text-xs text-[#2C1D15] mb-2">
-                Location: <strong>{exchange.meetupLocation || 'Convenient public location in city'}</strong>
+              {/* Partner Contact Information Bar */}
+              <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#DDD1BF] mb-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={exchange.partyB?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&q=80'}
+                      alt={exchange.partyB?.name || 'Partner'}
+                      className="w-11 h-11 rounded-full object-cover border border-[#DDD1BF]"
+                    />
+                    <div>
+                      <div className="font-bold text-sm text-[#2C1D15]">
+                        {exchange.partyB?.name || 'Exchange Partner'}
+                      </div>
+                      <div className="text-xs text-[#8C7A6B]">
+                        Location: {exchange.itemB?.ownerCity || exchange.partyB?.city || 'Local City'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Direct Contact Actions */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(partnerContacts.viber || exchange.partyB?.phone) && (
+                      <a
+                        href={`tel:${partnerContacts.viber || exchange.partyB?.phone}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5C4033] text-white text-xs font-semibold hover:bg-[#2C1D15] transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call Partner</span>
+                      </a>
+                    )}
+                    {(partnerContacts.viber || exchange.partyB?.phone) && (
+                      <a
+                        href={`viber://chat?number=${encodeURIComponent(partnerContacts.viber || exchange.partyB?.phone)}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#7360F2]/10 text-[#7360F2] border border-[#7360F2]/30 text-xs font-semibold hover:bg-[#7360F2]/20 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Viber</span>
+                      </a>
+                    )}
+                    {partnerContacts.telegram && (
+                      <a
+                        href={partnerContacts.telegram.startsWith('http') ? partnerContacts.telegram : `https://t.me/${partnerContacts.telegram.replace('@', '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#229ED9]/10 text-[#229ED9] border border-[#229ED9]/30 text-xs font-semibold hover:bg-[#229ED9]/20 transition-colors"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Telegram</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-[#EBE2D8] flex flex-wrap items-center justify-between text-xs text-[#5C4033] gap-2">
+                  <div>
+                    <span className="font-semibold text-[#2C1D15]">Phone Number:</span>{' '}
+                    <span>{partnerContacts.viber || exchange.partyB?.phone || '09-xxxxxxxxx'}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-[#2C1D15]">Suggested Meetup Spot:</span>{' '}
+                    <span>{exchange.meetupLocation || 'Safe public space (Mall, Tea shop, Supermarket)'}</span>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-[#8C7A6B]">
-                Timeline: Initiated {exchange.initiatedDate}
+
+              {/* Inspection Safety Checklist */}
+              <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 mb-5">
+                <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" />
+                  In-Person Inspection Checklist
+                </h4>
+                <ul className="text-xs text-amber-800 space-y-1.5 mb-0 list-disc list-inside">
+                  <li>Inspect the received item carefully against the listing pictures and disclosed defects.</li>
+                  <li>Test battery, electronics, or moving parts before finalizing the handover.</li>
+                  <li>Both parties confirm satisfaction before parting ways.</li>
+                </ul>
               </div>
+
+              {/* Handover Completion Action Button */}
+              {!exchange.isCompleted && exchange.status !== 'Completed' ? (
+                <div className="p-5 rounded-xl border-2 border-dashed border-[#5C4033]/30 bg-[#FAF8F5] text-center">
+                  <h4 className="font-serif font-bold text-base text-[#2C1D15] mb-1">
+                    Met in person and completed item handover?
+                  </h4>
+                  <p className="text-xs text-[#5C4033] max-w-md mx-auto mb-4 leading-relaxed">
+                    Click the button below once both you and your partner have verified items and finished the exchange. Both items will immediately update to <strong>Not Available</strong>.
+                  </p>
+                  <button
+                    onClick={() => {
+                      completeExchange(exchange.id, 'Handover completed in person.');
+                      setToastMessage({
+                        title: 'Exchange Completed Successfully!',
+                        text: 'Handover confirmed. Both items have been marked as Not Available.'
+                      });
+                    }}
+                    className="inline-flex items-center gap-2 py-3 px-8 text-xs font-bold rounded-xl bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-all shadow-md active:scale-95"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Confirm Handover &amp; Complete Exchange</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-serif font-bold text-base text-emerald-900 mb-1">
+                    In-Person Exchange Completed
+                  </h4>
+                  <p className="text-xs text-emerald-700 mb-0">
+                    Handover confirmed! Both items are marked <strong>Not Available</strong> in the community catalog.
+                  </p>
+                </div>
+              )}
             </div>
-
-            {!exchange.isCompleted ? (
-              <button
-                onClick={() => completeExchange(exchange.id, 'Handover completed in person.')}
-                className="w-full py-2.5 px-4 text-xs font-bold rounded-lg bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-colors shadow-xs"
-              >
-                Mark In-Person Exchange Completed (1-Click)
-              </button>
-            ) : (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-semibold text-center">
-                ✓ Exchange Successfully Completed!
-              </div>
-            )}
           </div>
         )}
 

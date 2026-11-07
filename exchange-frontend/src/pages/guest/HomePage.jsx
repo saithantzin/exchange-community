@@ -19,7 +19,7 @@ import { useExchange } from '../../context/ExchangeContext';
 
 export default function HomePage() {
   const { currentUser, isLoggedIn, login } = useAuth();
-  const { items, sendExchangeRequest } = useExchange();
+  const { items, categories, myItems, sendExchangeRequest } = useExchange();
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,13 +152,30 @@ export default function HomePage() {
         items={React.useMemo(() => {
           if (!items || items.length === 0) return [];
           if (!selectedCategory || selectedCategory === 'all') return items.slice(0, 8);
-          const catLow = selectedCategory.toLowerCase();
-          return items.filter(it => 
-            String(it.categoryId) === String(selectedCategory) ||
-            (it.categoryName && it.categoryName.toLowerCase().includes(catLow)) ||
-            (it.category && it.category.toLowerCase().includes(catLow))
-          ).slice(0, 8);
-        }, [items, selectedCategory])}
+
+          const matchedCategoryObj = categories?.find(c => 
+            String(c.id) === String(selectedCategory) ||
+            c.slug === selectedCategory ||
+            (c.name && c.name.toLowerCase() === selectedCategory.toLowerCase())
+          );
+
+          const targetId = matchedCategoryObj ? String(matchedCategoryObj.id) : null;
+          const targetSlug = matchedCategoryObj?.slug || selectedCategory;
+          const targetClean = (matchedCategoryObj?.name || selectedCategory).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          return items.filter(it => {
+            if (targetId && String(it.categoryId) === targetId) return true;
+            if (String(it.categoryId) === String(selectedCategory)) return true;
+            if (it.categorySlug && targetSlug && it.categorySlug === targetSlug) return true;
+
+            const itemCatName = (it.categoryName || it.category || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (itemCatName && targetClean && (itemCatName.includes(targetClean) || targetClean.includes(itemCatName))) {
+              return true;
+            }
+
+            return false;
+          }).slice(0, 8);
+        }, [items, selectedCategory, categories])}
         isLoading={false}
         error={null}
         selectedCategory={selectedCategory}
@@ -167,14 +184,16 @@ export default function HomePage() {
         onResetFilters={handleResetFilters}
       />
 
-      {/* Smart Item Matching Section */}
-      <SmartMatchingPreview
-        isLoggedIn={isLoggedIn}
-        onOpenAuthModal={handleOpenAuthModal}
-        onSendExchangeRequest={handleSendMatchRequest}
-        onOpenItemDetail={(item) => navigate(`/item/${item.id}`)}
-        currentUser={currentUser || { name: 'Guest', city: 'Mandalay' }}
-      />
+      {/* Smart Item Matching Section (Only shown when user is logged in AND has active listings) */}
+      {isLoggedIn && Boolean((myItems && myItems.length > 0) || (currentUser?.id && items && items.some(it => String(it.ownerId || it.owner?.id) === String(currentUser.id)))) && (
+        <SmartMatchingPreview
+          isLoggedIn={isLoggedIn}
+          onOpenAuthModal={handleOpenAuthModal}
+          onSendExchangeRequest={handleSendMatchRequest}
+          onOpenItemDetail={(item) => navigate(`/item/${item.id}`)}
+          currentUser={currentUser || { name: 'Member', city: 'Mandalay' }}
+        />
+      )}
 
       {/* 4 Steps How It Works */}
       <HowItWorksSection onGetStartedClick={() => navigate('/register')} />

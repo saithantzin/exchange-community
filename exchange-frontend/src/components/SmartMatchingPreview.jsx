@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useExchange } from '../context/ExchangeContext';
 import { SMART_MATCHES_DATA } from '../data/mockData';
 import itemService from '../services/itemService';
 
@@ -9,25 +10,39 @@ export default function SmartMatchingPreview({
   onOpenItemDetail,
   currentUser
 }) {
+  const { items, myItems } = useExchange();
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
 
+  const userHasListings = Boolean(
+    (myItems && myItems.length > 0) ||
+    (currentUser?.id && items && items.some(it => String(it.ownerId || it.owner?.id) === String(currentUser.id)))
+  );
+
   useEffect(() => {
+    if (!currentUser?.id || !userHasListings) {
+      setMatches([]);
+      return;
+    }
     itemService.getSmartMatches()
       .then(res => {
-        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res?.success && Array.isArray(res.data)) {
           setMatches(res.data);
         } else {
-          setMatches(SMART_MATCHES_DATA);
+          setMatches([]);
         }
       })
       .catch(err => {
-        console.warn('Failed to load smart matches for preview, using fallback:', err);
-        setMatches(SMART_MATCHES_DATA);
+        console.warn('Failed to load smart matches for preview:', err);
+        setMatches([]);
       });
-  }, [currentUser?.id]);
+  }, [currentUser?.id, userHasListings]);
 
-  const displayList = matches.length > 0 ? matches : SMART_MATCHES_DATA;
+  if (!isLoggedIn || !userHasListings) {
+    return null;
+  }
+
+  const displayList = matches;
 
   const filteredMatches = displayList.filter(match => {
     if (activeTab === 'local') return !match.intercity;
@@ -133,10 +148,10 @@ export default function SmartMatchingPreview({
                   className="badge p-2 px-3 rounded-pill"
                   style={{ backgroundColor: 'var(--primary-brown)', color: '#fff', fontSize: '0.82rem', letterSpacing: '0.02em' }}
                 >
-                  <i className="bi bi-person-check-fill me-1"></i> Personalized for {currentUser.name}
+                  <i className="bi bi-person-check-fill me-1"></i> Personalized for {currentUser?.name || 'Member'}
                 </span>
                 <span className="text-muted" style={{ fontSize: '0.88rem' }}>
-                  Based on your listings in {currentUser.city}
+                  Based on your listings in {currentUser?.city || 'Myanmar'}
                 </span>
               </div>
 
@@ -208,7 +223,7 @@ export default function SmartMatchingPreview({
                           Your Listing
                         </span>
                         <span className="badge bg-secondary-subtle text-secondary" style={{ fontSize: '0.72rem' }}>
-                          {match.memberItem.city.split(' ')[0]}
+                          {(match.memberItem?.city || 'Local').split(' ')[0]}
                         </span>
                       </div>
 
@@ -231,7 +246,7 @@ export default function SmartMatchingPreview({
                           {match.offeredItem.title}
                         </span>
                         <span className="badge bg-secondary-subtle text-secondary" style={{ fontSize: '0.72rem' }}>
-                          {match.offeredItem.city.split(' ')[0]}
+                          {(match.offeredItem?.city || 'Local').split(' ')[0]}
                         </span>
                       </div>
                     </div>

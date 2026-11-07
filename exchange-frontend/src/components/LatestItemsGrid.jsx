@@ -20,20 +20,35 @@ export default function LatestItemsGrid({
 
   // Dynamic category tabs derived from database categories
   const categoryTabs = [
-    { id: 'all', label: 'All Items' },
+    { id: 'all', slug: 'all', categoryId: null, label: 'All Items' },
     ...(categories && categories.length > 0
-      ? categories.slice(0, 7).map(c => ({
-          id: c.slug || c.id,
+      ? categories.map(c => ({
+          id: c.slug || String(c.id),
+          slug: c.slug || '',
+          categoryId: c.id,
           label: c.name
         }))
       : [
-          { id: 'electronics', label: 'Electronics & Gadgets' },
-          { id: 'sports-outdoors', label: 'Sports & Outdoors' },
-          { id: 'fashion-accessories', label: 'Fashion & Accessories' },
-          { id: 'home-furniture', label: 'Home & Furniture' },
-          { id: 'books', label: 'Books' }
+          { id: 'electronics-gadgets', slug: 'electronics-gadgets', categoryId: 1, label: 'Electronics & Gadgets' },
+          { id: 'sports-outdoors', slug: 'sports-outdoors', categoryId: 2, label: 'Sports & Outdoors' },
+          { id: 'fashion-accessories', slug: 'fashion-accessories', categoryId: 3, label: 'Fashion & Accessories' },
+          { id: 'home-furniture', slug: 'home-furniture', categoryId: 4, label: 'Home & Furniture' },
+          { id: 'books-collectible', slug: 'books-collectible', categoryId: 5, label: 'Books & Collectible' }
         ])
   ];
+
+  const isTabActive = (tab) => {
+    if (tab.id === 'all') {
+      return !selectedCategory || selectedCategory === 'all';
+    }
+    const sel = String(selectedCategory).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const tabId = String(tab.id).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const tabSlug = String(tab.slug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const tabCatId = String(tab.categoryId || '');
+    const tabLabel = String(tab.label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    return sel === tabId || (tabSlug && sel === tabSlug) || String(selectedCategory) === tabCatId || (tabLabel && sel === tabLabel);
+  };
 
   return (
     <section id="browse" className="py-5" style={{ backgroundColor: 'var(--bg-warm)' }}>
@@ -61,7 +76,7 @@ export default function LatestItemsGrid({
         {/* Category Filter Pills Bar (Dynamic from Database) */}
         <div className="d-flex flex-wrap gap-2 gap-md-3 mb-5 pb-2 overflow-auto">
           {categoryTabs.map(tab => {
-            const isActive = String(selectedCategory) === String(tab.id);
+            const isActive = isTabActive(tab);
             return (
               <button
                 key={tab.id}

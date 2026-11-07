@@ -280,6 +280,50 @@ class ExchangeRequestController extends Controller
     }
 
     /**
+     * Mark an exchange as completed (In-Person Meetup or Handover confirmed).
+     * Updates exchange status to 'Completed' and both items' availability_status to 'Not Available'.
+     */
+    public function complete(Request $request, $id): JsonResponse
+    {
+        $user = $request->user();
+        $req = ExchangeRequest::with(['offeredItem', 'requestedItem'])->find($id);
+
+        if (!$req) {
+            $cleanCode = str_replace('EXC-', '', strtoupper($id));
+            $req = ExchangeRequest::with(['offeredItem', 'requestedItem'])
+                ->where('exchange_code', $id)
+                ->orWhere('id', $cleanCode)
+                ->first();
+        }
+
+        if (!$req) {
+            return $this->errorResponse('Exchange request not found', 404);
+        }
+
+        if ($req->requester_id !== $user->id && $req->owner_id !== $user->id && !$user->isAdmin()) {
+            return $this->errorResponse('Unauthorized to complete this exchange', 403);
+        }
+
+        $req->status = 'Completed';
+        $req->completed_at = now();
+        $req->save();
+
+        if ($req->offeredItem) {
+            $req->offeredItem->availability_status = 'Not Available';
+            $req->offeredItem->save();
+        }
+        if ($req->requestedItem) {
+            $req->requestedItem->availability_status = 'Not Available';
+            $req->requestedItem->save();
+        }
+
+        return $this->successResponse(
+            $this->formatRequest($req, $user->id),
+            'Exchange marked as Completed. Both items are now Not Available.'
+        );
+    }
+
+    /**
      * Get real exchange history records for authenticated user.
      */
     public function history(Request $request): JsonResponse

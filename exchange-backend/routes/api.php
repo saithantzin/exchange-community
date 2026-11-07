@@ -55,6 +55,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exchange-requests/{id}/cancel', [ExchangeRequestController::class, 'cancel']);
     Route::post('/exchange-requests/{id}/deposit', [ExchangeRequestController::class, 'submitDeposit']);
     Route::post('/exchanges/{id}/deposit', [ExchangeRequestController::class, 'submitDeposit']);
+    Route::post('/exchange-requests/{id}/complete', [ExchangeRequestController::class, 'complete']);
+    Route::post('/exchanges/{id}/complete', [ExchangeRequestController::class, 'complete']);
     Route::get('/exchange-history', [ExchangeRequestController::class, 'history']);
     Route::post('/exchange-requests/{id}/review', [ExchangeRequestController::class, 'submitReview']);
 });

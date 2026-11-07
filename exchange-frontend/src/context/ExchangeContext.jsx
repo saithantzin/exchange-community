@@ -54,7 +54,8 @@ function formatItemFromBackend(bItem) {
     title: bItem.title,
     category: bItem.category?.name || 'Electronics',
     categoryName: bItem.category?.name || 'Electronics',
-    categoryId: bItem.category_id,
+    categoryId: bItem.category_id || bItem.category?.id,
+    categorySlug: bItem.category?.slug || '',
     condition: bItem.condition,
     conditionColor: '#87571B',
     conditionBg: '#F9F1E2',
@@ -86,7 +87,7 @@ function formatItemFromBackend(bItem) {
 export function ExchangeProvider({ children }) {
   const { currentUser } = useAuth();
 
-  const [items, setItems] = useState(INITIAL_ITEMS);
+  const [items, setItems] = useState([]);
   const [myItems, setMyItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -99,12 +100,16 @@ export function ExchangeProvider({ children }) {
   const refreshItems = async () => {
     try {
       const res = await itemService.getItems({ per_page: 50 });
-      if (res?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
-        const dynamicItems = res.data.data.map(formatItemFromBackend);
+      if (res?.success && res.data) {
+        const rawList = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        const dynamicItems = rawList.map(formatItemFromBackend);
         setItems(dynamicItems);
+      } else {
+        setItems([]);
       }
     } catch (err) {
-      console.warn('Could not load dynamic items, using static fallback:', err?.message);
+      console.warn('Could not load dynamic items from backend:', err?.message);
+      setItems([]);
     }
   };
 
@@ -134,7 +139,7 @@ export function ExchangeProvider({ children }) {
     } catch (err) {
       console.warn('Could not load dynamic my items from backend:', err?.message);
       if (currentUser?.id) {
-        setMyItems(prev => prev.length > 0 ? prev : CURRENT_USER_ITEMS);
+        setMyItems([]);
       }
     }
   };
@@ -614,9 +619,27 @@ export function ExchangeProvider({ children }) {
   };
 
   // Complete Exchange (Direct Handover / In-Person Meetup)
-  const completeExchange = (exchangeId, notes = '') => {
+  const completeExchange = async (exchangeId, notes = '') => {
+    let targetOfferedId = null;
+    let targetRequestedId = null;
+
+    // 1. Persist to Backend API if token present
+    try {
+      const cleanId = String(exchangeId).replace(/^EXC-/, '').trim();
+      await exchangeService.completeExchange(cleanId, { notes });
+    } catch (err) {
+      console.warn('Backend complete exchange notice:', err?.message);
+    }
+
+    // 2. Update local exchanges state
     setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
+      const isMatch = exc.id === exchangeId ||
+                      exc.exchangeCode === exchangeId ||
+                      String(exc.numericId) === String(exchangeId) ||
+                      ('EXC-' + exc.numericId) === String(exchangeId);
+      if (!isMatch) return exc;
+      targetOfferedId = exc.offeredItemId || exc.itemA?.id;
+      targetRequestedId = exc.requestedItemId || exc.itemB?.id;
       return {
         ...exc,
         status: 'Completed',
@@ -625,6 +648,42 @@ export function ExchangeProvider({ children }) {
         completionNotes: notes || 'Item exchanged successfully in person.'
       };
     }));
+
+    // 3. Update local requests state
+    setRequests(prev => prev.map(req => {
+      const isMatch = String(req.id) === String(exchangeId).replace(/^EXC-/, '').trim() ||
+                      req.exchange_code === exchangeId ||
+                      ('EXC-' + req.id) === String(exchangeId);
+      if (!isMatch) return req;
+      targetOfferedId = targetOfferedId || req.offeredItem?.id;
+      targetRequestedId = targetRequestedId || req.requestedItem?.id;
+      return {
+        ...req,
+        status: 'Completed',
+        completedAt: new Date().toISOString().split('T')[0]
+      };
+    }));
+
+    // 4. Update availability_status of exchanged items to 'Not Available'
+    setItems(prev => prev.map(it => {
+      if ((targetOfferedId && it.id === targetOfferedId) || (targetRequestedId && it.id === targetRequestedId)) {
+        return { ...it, status: 'Not Available', availability_status: 'Not Available' };
+      }
+      return it;
+    }));
+
+    setMyItems(prev => prev.map(it => {
+      if ((targetOfferedId && it.id === targetOfferedId) || (targetRequestedId && it.id === targetRequestedId)) {
+        return { ...it, status: 'Not Available', availability_status: 'Not Available' };
+      }
+      return it;
+    }));
+
+    // Refresh dynamically from backend
+    setTimeout(() => {
+      refreshItems();
+      refreshMyItems();
+    }, 500);
   };
 
   // Submit Deposit Payment Proof (Requirement 3: State 2)
