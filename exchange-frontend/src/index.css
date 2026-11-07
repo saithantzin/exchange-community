@@ -37,7 +37,6 @@
   --transition-smooth: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-*
 /* Disable native browser password reveal & clear icons (Edge, IE, Chrome) to prevent duplicate eye icons */
 input::-ms-reveal,
 input::-ms-clear {

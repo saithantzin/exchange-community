@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useExchange } from '../context/ExchangeContext';
-import { SMART_MATCHES_DATA } from '../data/mockData';
 import itemService from '../services/itemService';
 
 export default function SmartMatchingPreview({
@@ -38,7 +37,7 @@ export default function SmartMatchingPreview({
       });
   }, [currentUser?.id, userHasListings]);
 
-  if (!isLoggedIn || !userHasListings) {
+  if (!isLoggedIn || !userHasListings || !matches || matches.length === 0) {
     return null;
   }
 

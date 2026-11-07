@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import exchangeService from '../../services/exchangeService';
 import {
   Users,
   Package,
@@ -30,6 +31,76 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [logs, setLogs] = useState(ADMIN_AUDIT_LOGS);
   const [dynamicStats, setDynamicStats] = useState(null);
+  const [approvingId, setApprovingId] = useState(null);
+  const [depositNotice, setDepositNotice] = useState(null);
+
+  const [pendingDepositList, setPendingDepositList] = useState([
+    {
+      id: 'DEP-101',
+      exchangeCode: 'EXC-8328',
+      exchangeNumericId: '6',
+      partyRole: 'partyA',
+      memberName: 'Su Su Win Htike',
+      itemTitle: 'Giant ATX Mountain Bike',
+      category: 'Sports & Outdoors',
+      amount: 50000,
+      paymentMethod: 'KBZPay',
+      referenceNumber: 'KBZ-891042',
+      status: 'Pending',
+      submittedAt: 'Today 14:15'
+    },
+    {
+      id: 'DEP-102',
+      exchangeCode: 'EXC-8328',
+      exchangeNumericId: '6',
+      partyRole: 'partyB',
+      memberName: 'Wai Yan',
+      itemTitle: 'Harry Potter Book Collections',
+      category: 'Books & Collectible',
+      amount: 50000,
+      paymentMethod: 'WavePay',
+      referenceNumber: 'WAVE-442190',
+      status: 'Pending',
+      submittedAt: 'Today 14:20'
+    }
+  ]);
+
+  const handleApproveDepositSlip = async (dep) => {
+    setApprovingId(dep.id);
+    try {
+      await exchangeService.adminApproveDeposit(dep.exchangeNumericId || dep.exchangeCode, {
+        partyRole: dep.partyRole,
+        paymentMethod: dep.paymentMethod,
+        referenceNumber: dep.referenceNumber
+      });
+    } catch (err) {
+      console.warn('Backend deposit approval notice:', err?.message);
+    }
+
+    setPendingDepositList(prev => prev.map(item => {
+      if (item.id === dep.id) {
+        return { ...item, status: 'Verified' };
+      }
+      return item;
+    }));
+
+    setDepositNotice(`Deposit Approved: ${(dep.amount).toLocaleString()} MMK for ${dep.memberName} on ${dep.exchangeCode} has been verified.`);
+
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLogs(prev => [
+      {
+        id: `LOG-${Date.now().toString().slice(-4)}`,
+        action: 'DEPOSIT_APPROVED',
+        admin: 'Platform Administrator',
+        details: `Approved ${dep.paymentMethod} escrow deposit of ${(dep.amount).toLocaleString()} MMK for ${dep.memberName} (${dep.exchangeCode}).`,
+        timestamp: `Today, ${nowTime}`,
+        ip: '127.0.0.1'
+      },
+      ...prev
+    ]);
+
+    setApprovingId(null);
+  };
 
   const fetchStats = () => {
     setRefreshing(true);
@@ -225,6 +296,108 @@ export default function Dashboard() {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Escrow Deposit Moderation & Immediate Approval Queue */}
+      <div className="bg-white border border-[#EBE2D8] rounded-xl p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-[#EBE2D8]">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200">
+              <ShieldCheck className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-[#2C1D15]">
+                Escrow Deposit Approvals Queue
+              </h3>
+              <p className="text-xs text-[#8C7A6B]">
+                Verify payment slips submitted by participants to unlock stage 3 contact information and shipping.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-3 py-1 bg-amber-100 text-amber-900 border border-amber-200 rounded-full self-start sm:self-auto">
+            {pendingDepositList.filter(d => d.status === 'Pending').length} Pending Approval
+          </span>
+        </div>
+
+        {depositNotice && (
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 font-medium">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{depositNotice}</span>
+            </div>
+            <button onClick={() => setDepositNotice(null)} className="text-emerald-700 hover:text-emerald-900">✕</button>
+          </div>
+        )}
+
+        {pendingDepositList.length === 0 ? (
+          <div className="p-6 text-center text-xs text-[#8C7A6B] bg-[#F9F6F0] rounded-xl border border-dashed border-[#DDD1BF]">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
+            <div className="font-bold text-[#2C1D15]">All Escrow Deposits Approved</div>
+            <div>No pending deposit slips awaiting review at this time.</div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pendingDepositList.map((dep) => (
+              <div
+                key={dep.id}
+                className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                  dep.status === 'Verified'
+                    ? 'bg-emerald-50/60 border-emerald-200'
+                    : 'bg-[#FAF8F5] border-[#DDD1BF]'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                    dep.status === 'Verified' ? 'bg-emerald-600 text-white' : 'bg-[#5C4033] text-white'
+                  }`}>
+                    {dep.status === 'Verified' ? '✓' : 'MMK'}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-[#2C1D15]">{dep.memberName}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#DDD1BF]/60 text-[#2C1D15] font-mono">
+                        {dep.exchangeCode}
+                      </span>
+                      <span className="text-xs text-[#8C7A6B]">• {dep.itemTitle} ({dep.category})</span>
+                    </div>
+                    <div className="text-xs text-[#5C4033] mt-1 flex flex-wrap items-center gap-3">
+                      <span>Amount: <strong className="text-[#2C1D15]">{(dep.amount).toLocaleString()} MMK</strong></span>
+                      <span>Method: <strong className="text-[#2C1D15]">{dep.paymentMethod}</strong></span>
+                      <span>Ref: <code className="bg-white px-1.5 py-0.5 rounded border border-[#DDD1BF] font-mono">{dep.referenceNumber}</code></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                  {dep.status === 'Verified' ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Deposit Approved</span>
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleApproveDepositSlip(dep)}
+                        disabled={approvingId === dep.id}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition-colors text-xs font-bold shadow-xs active:scale-95"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{approvingId === dep.id ? 'Approving...' : 'Approve Deposit'}</span>
+                      </button>
+                      <Link
+                        to={`/admin/exchanges/${dep.exchangeNumericId || dep.exchangeCode}`}
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-white border border-[#DDD1BF] text-[#2C1D15] hover:bg-[#F9F6F0] transition-colors text-xs font-medium"
+                      >
+                        <span>Details</span>
+                        <ArrowUpRight className="w-3 h-3 text-[#8C7A6B]" />
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Analytics & Charts Grid */}

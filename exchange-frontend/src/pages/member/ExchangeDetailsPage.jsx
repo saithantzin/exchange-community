@@ -51,6 +51,32 @@ export default function ExchangeDetailsPage() {
   const cleanId = String(id || '').replace(/^#/, '').trim();
   const cleanIdLower = cleanId.toLowerCase();
 
+  const [apiExchange, setApiExchange] = React.useState(null);
+  const [apiLoading, setApiLoading] = React.useState(true);
+
+  // Fetch real exchange record from backend API
+  React.useEffect(() => {
+    let isMounted = true;
+    setApiLoading(true);
+
+    exchangeService.getExchangeRequestById(cleanId)
+      .then(res => {
+        if (!isMounted) return;
+        if (res?.success && res.data) {
+          setApiExchange(res.data);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch real exchange from API:', err?.message);
+      })
+      .finally(() => {
+        if (isMounted) setApiLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [cleanId]);
+
+  // Context fallback if already loaded in memory
   const foundExchange = exchanges.find(e => {
     const eid = String(e.id || '').replace(/^#/, '').trim().toLowerCase();
     const eCode = String(e.exchangeCode || '').replace(/^#/, '').trim().toLowerCase();
@@ -64,97 +90,110 @@ export default function ExchangeDetailsPage() {
     return rId === cleanIdLower || rCode === cleanIdLower;
   }) : null;
 
-  const exchange = foundExchange || (matchingReq ? {
-    id: matchingReq.exchange_code || ('EXC-' + matchingReq.id),
-    numericId: matchingReq.id,
-    status: matchingReq.status === 'Completed' ? 'Completed' : (matchingReq.status === 'In Transit' ? 'In Transit' : 'Deposit Payment Required'),
-    isIntercity: Boolean(matchingReq.isIntercity),
-    intercityStage: matchingReq.status === 'Completed' ? 6 : (matchingReq.status === 'In Transit' ? 5 : 2),
-    handoverMethod: matchingReq.handoverMethod || 'Intercity Courier Delivery',
-    initiatedDate: matchingReq.date || 'Recent',
-    completedDate: matchingReq.completedAt || null,
-    itemA: {
-      title: matchingReq.offeredItem?.title || 'Offered Item',
-      image: matchingReq.offeredItem?.image,
-      ownerCity: matchingReq.offeredItem?.city,
-      ownerName: currentUser?.name || 'You',
-      category: matchingReq.offeredItem?.category || 'General',
-    },
-    itemB: {
-      title: matchingReq.requestedItem?.title || 'Requested Item',
-      image: matchingReq.requestedItem?.image,
-      ownerCity: matchingReq.requestedItem?.city,
-      ownerName: matchingReq.recipient?.name || 'Partner',
-      category: matchingReq.requestedItem?.category || 'General',
-    },
-    partyA: {
-      name: `${currentUser?.name || 'You'} (You)`,
-      city: currentUser?.city || 'Local',
-      phone: currentUser?.phone || '',
-      telegram: currentUser?.telegram || '',
-      viber: currentUser?.viber || currentUser?.phone || '',
-      facebook: currentUser?.facebook || '',
-      courier: 'Royal Express',
-      trackingNumber: '',
-      dispatched: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
-      confirmedReceipt: matchingReq.status === 'Completed',
-    },
-    partyB: {
-      name: matchingReq.recipient?.name || 'Partner',
-      city: matchingReq.recipient?.city || 'Local',
-      phone: matchingReq.recipient?.phone || '',
-      telegram: matchingReq.recipient?.telegram || '',
-      viber: matchingReq.recipient?.viber || matchingReq.recipient?.phone || '',
-      facebook: matchingReq.recipient?.facebook || '',
-      avatar: matchingReq.recipient?.avatar,
-      courier: 'Elite Cargo Express',
-      trackingNumber: '',
-      dispatched: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
-      confirmedReceipt: matchingReq.status === 'Completed',
-    },
-    deposits: {
+  // Real Exchange Data Transformer
+  const rawExchange = apiExchange || matchingReq || foundExchange;
+
+  const isOwner = Boolean(
+    currentUser?.id &&
+    rawExchange &&
+    (String(rawExchange.recipient?.id || rawExchange.owner_id || rawExchange.owner?.id) === String(currentUser.id))
+  );
+
+  const exchange = React.useMemo(() => {
+    if (!rawExchange) return null;
+
+    const myItem = isOwner ? (rawExchange.requestedItem || rawExchange.itemA) : (rawExchange.offeredItem || rawExchange.itemA);
+    const partnerItem = isOwner ? (rawExchange.offeredItem || rawExchange.itemB) : (rawExchange.requestedItem || rawExchange.itemB);
+    const myParty = isOwner ? (rawExchange.recipient || rawExchange.partyA) : (rawExchange.requester || rawExchange.partyA);
+    const partnerParty = isOwner ? (rawExchange.requester || rawExchange.partyB) : (rawExchange.recipient || rawExchange.partyB);
+
+    const handoverMethod = rawExchange.handoverMethod || rawExchange.exchange_type || 'In-Person Meetup';
+    const isCompleted = rawExchange.status === 'Completed' || Boolean(rawExchange.isCompleted);
+
+    return {
+      id: rawExchange.exchange_code || rawExchange.code || (rawExchange.id ? ('EXC-' + rawExchange.id) : cleanId),
+      numericId: rawExchange.numericId || rawExchange.id,
+      exchangeCode: rawExchange.exchange_code || rawExchange.code || (rawExchange.id ? ('EXC-' + rawExchange.id) : cleanId),
+      status: rawExchange.status || (isCompleted ? 'Completed' : 'Accepted'),
+      isCompleted: isCompleted,
+      isIntercity: Boolean(rawExchange.isIntercity),
+      intercityStage: isCompleted ? 6 : (rawExchange.intercityStage || 2),
+      handoverMethod: handoverMethod,
+      meetupLocation: rawExchange.meetupLocation || '',
+      notes: rawExchange.notes || rawExchange.message || '',
+      initiatedDate: rawExchange.date || (rawExchange.createdAt ? new Date(rawExchange.createdAt).toLocaleDateString() : 'Recent'),
+      completedDate: rawExchange.completedAt || rawExchange.completedDate || null,
+      itemA: {
+        id: myItem?.id,
+        title: myItem?.title || 'Your Provided Item',
+        image: myItem?.image || myItem?.images?.[0] || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80',
+        ownerCity: myItem?.city || currentUser?.city || 'Local',
+        ownerName: `${currentUser?.name || 'You'} (You)`,
+        category: myItem?.category?.name || myItem?.category || 'General',
+        condition: myItem?.condition || 'Good',
+        defects: myItem?.defects || ''
+      },
+      itemB: {
+        id: partnerItem?.id,
+        title: partnerItem?.title || 'Partner Item',
+        image: partnerItem?.image || partnerItem?.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
+        ownerCity: partnerItem?.city || partnerParty?.city || 'Local',
+        ownerName: partnerParty?.name || 'Exchange Partner',
+        category: partnerItem?.category?.name || partnerItem?.category || 'General',
+        condition: partnerItem?.condition || 'Good',
+        defects: partnerItem?.defects || ''
+      },
       partyA: {
-        itemTitle: matchingReq.offeredItem?.title || 'Offered Item',
-        category: matchingReq.offeredItem?.category || 'General',
-        amount: 50000,
-        status: (matchingReq.status === 'Completed' || matchingReq.status === 'In Transit') ? 'Verified' : 'Unpaid',
-        paymentMethod: null,
-        referenceNumber: '',
+        name: `${currentUser?.name || 'You'} (You)`,
+        city: currentUser?.city || 'Local',
+        phone: currentUser?.phone || '',
+        telegram: currentUser?.telegram || '',
+        viber: currentUser?.viber || currentUser?.phone || '',
+        facebook: currentUser?.facebook || '',
+        courier: rawExchange.partyA?.courier || 'Royal Express',
+        trackingNumber: rawExchange.partyA?.trackingNumber || '',
+        dispatched: Boolean(rawExchange.partyA?.dispatched || isCompleted),
+        confirmedReceipt: isCompleted
       },
       partyB: {
-        itemTitle: matchingReq.requestedItem?.title || 'Requested Item',
-        category: matchingReq.requestedItem?.category || 'General',
-        amount: 50000,
-        status: (matchingReq.status === 'Completed' || matchingReq.status === 'In Transit') ? 'Verified' : 'Unpaid',
-        paymentMethod: null,
-        referenceNumber: '',
+        id: partnerParty?.id,
+        name: partnerParty?.name || 'Exchange Partner',
+        city: partnerParty?.city || 'Local',
+        phone: partnerParty?.phone || '',
+        telegram: partnerParty?.telegram || partnerParty?.communicationContacts?.telegram || '',
+        viber: partnerParty?.viber || partnerParty?.phone || partnerParty?.communicationContacts?.viber || '',
+        facebook: partnerParty?.facebook || partnerParty?.communicationContacts?.facebook || '',
+        avatar: partnerParty?.avatar || partnerParty?.profile_image || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&q=80',
+        rating: partnerParty?.rating || 5.0,
+        courier: rawExchange.partyB?.courier || 'Elite Cargo Express',
+        trackingNumber: rawExchange.partyB?.trackingNumber || '',
+        dispatched: Boolean(rawExchange.partyB?.dispatched || isCompleted),
+        confirmedReceipt: isCompleted
       },
-    },
-    courierArrangement: {
-      confirmed: matchingReq.status === 'Completed' || matchingReq.status === 'In Transit',
-      confirmedAt: null,
-    },
-    refundWorkflow: {
-      initiated: matchingReq.status === 'Completed',
-      status: matchingReq.status === 'Completed' ? 'Refund Processed' : 'Locked',
-    },
-  } : (exchanges[0] ? {
-    ...exchanges[0],
-    id: cleanId ? (cleanId.toUpperCase().startsWith('EXC-') ? cleanId.toUpperCase() : ('EXC-' + cleanId)) : exchanges[0].id
-  } : {
-    id: cleanId ? (cleanId.toUpperCase().startsWith('EXC-') ? cleanId.toUpperCase() : ('EXC-' + cleanId)) : 'EXC-NEW',
-    status: 'Deposit Payment Required',
-    isIntercity: true,
-    intercityStage: 2,
-    handoverMethod: 'Intercity Courier Delivery',
-    initiatedDate: 'Recent',
-    deposits: {
-      partyA: { itemTitle: 'Your Item', category: 'General', amount: 50000, status: 'Unpaid' },
-      partyB: { itemTitle: 'Partner Item', category: 'General', amount: 50000, status: 'Unpaid' }
-    },
-    partyA: { name: 'You', city: 'Local', dispatched: false, confirmedReceipt: false, trackingNumber: '' },
-    partyB: { name: 'Partner', city: 'Local', dispatched: false, confirmedReceipt: false, trackingNumber: '' }
-  }));
+      deposits: rawExchange.deposits || {
+        partyA: {
+          itemTitle: myItem?.title || 'Your Provided Item',
+          category: myItem?.category?.name || myItem?.category || 'General',
+          amount: 50000,
+          status: isCompleted ? 'Verified' : 'Unpaid'
+        },
+        partyB: {
+          itemTitle: partnerItem?.title || 'Partner Item',
+          category: partnerItem?.category?.name || partnerItem?.category || 'General',
+          amount: 50000,
+          status: isCompleted ? 'Verified' : 'Unpaid'
+        }
+      },
+      courierArrangement: rawExchange.courierArrangement || {
+        confirmed: isCompleted,
+        confirmedAt: null
+      },
+      refundWorkflow: rawExchange.refundWorkflow || {
+        initiated: isCompleted,
+        status: isCompleted ? 'Refund Processed' : 'Locked'
+      }
+    };
+  }, [rawExchange, isOwner, cleanId, currentUser]);
 
   const handoverMethodRaw = String(
     exchange.handoverMethod ||
@@ -520,6 +559,37 @@ export default function ExchangeDetailsPage() {
   const partnerContacts = extractUserContacts(exchange.partyB || exchange.recipient || exchange.requester);
   const myContacts = extractUserContacts(currentUser);
 
+  if (apiLoading && !exchange) {
+    return (
+      <div className="py-16 bg-[#F9F6F0] min-h-[85vh] flex items-center justify-center">
+        <div className="text-center p-8 bg-white rounded-2xl border border-[#DDD1BF] shadow-sm max-w-md mx-auto">
+          <div className="w-10 h-10 border-4 border-[#5C4033] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="font-serif font-bold text-lg text-[#2C1D15] mb-1">Loading Exchange Record...</h3>
+          <p className="text-xs text-[#5C4033] mb-0">Querying live exchange #{cleanId} from MySQL database.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!exchange) {
+    return (
+      <div className="py-16 bg-[#F9F6F0] min-h-[85vh] flex items-center justify-center">
+        <div className="text-center p-8 bg-white rounded-2xl border border-[#DDD1BF] shadow-sm max-w-md mx-auto">
+          <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-3">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h3 className="font-serif font-bold text-lg text-[#2C1D15] mb-2">Exchange #{cleanId} Not Found</h3>
+          <p className="text-xs text-[#5C4033] mb-5">
+            This exchange does not exist in the database or you do not have permission to access it.
+          </p>
+          <Link to="/requests" className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#5C4033] text-white rounded-lg text-xs font-semibold hover:bg-[#2C1D15] transition-colors">
+            <ArrowRight className="w-3.5 h-3.5 rotate-180" /> Back to Proposals
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-8 bg-[#F9F6F0] min-h-[85vh]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -581,82 +651,46 @@ export default function ExchangeDetailsPage() {
         </div>
 
         {/* ======================================================== */}
-        {/* IN-PERSON MEETUP 4-STAGE STEPPER                          */}
+        {/* IN-PERSON MEETUP 2-STAGE STEPPER                          */}
         {/* ======================================================== */}
         {!isIntercity && (
           <div className="bg-white rounded-2xl border border-[#DDD1BF] p-5 sm:p-6 mb-6 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-bold text-[#8C7A6B] uppercase tracking-wider flex items-center gap-1.5">
                 <Box className="w-4 h-4 text-[#5C4033]" />
-                In-Person Meetup Protocol Stepper
+                In-Person Meetup Stepper
               </h2>
               <span className="text-[11px] font-semibold text-[#5C4033] bg-[#F9F6F0] px-2.5 py-0.5 rounded-full border border-[#DDD1BF]">
-                {exchange.isCompleted || exchange.status === 'Completed' ? 'Stage 4 of 4 (Completed)' : 'Stage 2 of 4 (Coordinating)'}
+                {exchange.isCompleted || exchange.status === 'Completed' ? 'State 2 of 2 (Handover Done)' : 'State 1 of 2 (Accept)'}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-              {/* Stage 1: Accepted */}
-              <div className="p-3 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900">
-                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center mx-auto mb-1.5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 text-center">
+              {/* State 1: Accept */}
+              <div className="p-3.5 sm:p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900">
+                <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center mx-auto mb-1.5 shadow-xs">
                   ✓
                 </div>
-                <div className="text-xs font-bold leading-tight">1. Accepted</div>
-                <div className="text-[10px] text-emerald-700 mt-0.5">Proposal Approved</div>
+                <div className="text-xs sm:text-sm font-bold leading-tight">1. Accept</div>
+                <div className="text-[11px] text-emerald-700 mt-0.5 font-medium">Proposal Accepted</div>
               </div>
 
-              {/* Stage 2: Coordinate Meetup */}
-              <div className={`p-3 rounded-xl border transition-all ${
+              {/* State 2: Handover Done */}
+              <div className={`p-3.5 sm:p-4 rounded-xl border transition-all ${
                 exchange.isCompleted || exchange.status === 'Completed'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 ring-2 ring-emerald-300'
                   : 'bg-amber-50 border-amber-300 text-amber-900 ring-2 ring-amber-300'
               }`}>
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
+                <div className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 shadow-xs ${
                   exchange.isCompleted || exchange.status === 'Completed'
                     ? 'bg-emerald-600 text-white'
                     : 'bg-amber-500 text-white'
                 }`}>
                   {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '2'}
                 </div>
-                <div className="text-xs font-bold leading-tight">2. Coordinate</div>
-                <div className="text-[10px] mt-0.5">
-                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Coordinated' : 'Contacts Unlocked'}
-                </div>
-              </div>
-
-              {/* Stage 3: Meet & Inspect */}
-              <div className={`p-3 rounded-xl border transition-all ${
-                exchange.isCompleted || exchange.status === 'Completed'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-blue-50 border-blue-200 text-blue-900'
-              }`}>
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
-                  exchange.isCompleted || exchange.status === 'Completed'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-blue-600 text-white'
-                }`}>
-                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '3'}
-                </div>
-                <div className="text-xs font-bold leading-tight">3. Meet & Inspect</div>
-                <div className="text-[10px] mt-0.5">Face-to-Face Check</div>
-              </div>
-
-              {/* Stage 4: Handover Completed */}
-              <div className={`p-3 rounded-xl border transition-all ${
-                exchange.isCompleted || exchange.status === 'Completed'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 ring-2 ring-emerald-300'
-                  : 'bg-white border-[#EBE2D8] text-[#8C7A6B] opacity-60'
-              }`}>
-                <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 ${
-                  exchange.isCompleted || exchange.status === 'Completed'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-[#DDD1BF] text-[#5C4033]'
-                }`}>
-                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '4'}
-                </div>
-                <div className="text-xs font-bold leading-tight">4. Handover Done</div>
-                <div className="text-[10px] mt-0.5">
-                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Completed' : 'Pending Swap'}
+                <div className="text-xs sm:text-sm font-bold leading-tight">2. Handover Done</div>
+                <div className="text-[11px] mt-0.5 font-medium">
+                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Completed & Unavailable' : 'Pending In-Person Handover'}
                 </div>
               </div>
             </div>
@@ -1769,6 +1803,7 @@ export default function ExchangeDetailsPage() {
                   <button
                     onClick={() => {
                       completeExchange(exchange.id, 'Handover completed in person.');
+                      setApiExchange(prev => prev ? { ...prev, status: 'Completed', isCompleted: true } : prev);
                       setToastMessage({
                         title: 'Exchange Completed Successfully!',
                         text: 'Handover confirmed. Both items have been marked as Not Available.'

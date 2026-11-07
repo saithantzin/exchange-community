@@ -171,6 +171,11 @@ class ExchangeRequestController extends Controller
         $user = $request->user();
         $cleanId = str_replace('#', '', $id);
 
+        $codeVariant = strtoupper($cleanId);
+        if (!str_starts_with($codeVariant, 'EXC-') && is_numeric($cleanId)) {
+            $codeVariant = 'EXC-' . $cleanId;
+        }
+
         $req = ExchangeRequest::with([
             'requester.communicationContacts',
             'requester.township.stateRegion',
@@ -190,7 +195,12 @@ class ExchangeRequestController extends Controller
         ])
         ->where('id', $cleanId)
         ->orWhere('exchange_code', $cleanId)
-        ->firstOrFail();
+        ->orWhere('exchange_code', $codeVariant)
+        ->first();
+
+        if (!$req) {
+            return $this->errorResponse('Exchange record not found', 404);
+        }
 
         if ($req->requester_id !== $user->id && $req->owner_id !== $user->id && !$user->isAdmin()) {
             return $this->errorResponse('Unauthorized to view this exchange request', 403);
@@ -478,9 +488,15 @@ class ExchangeRequestController extends Controller
         $requestedRegion = $req->requestedItem?->township?->stateRegion?->name;
         $requestedCity = $requestedTownship && $requestedRegion ? "{$requestedTownship}, {$requestedRegion}" : ($req->requestedItem?->city ?? 'Yangon (YGN)');
 
-        $isIntercity = str_contains(strtolower($req->exchange_type ?? ''), 'courier')
+        $isMeetup = str_contains(strtolower($req->exchange_type ?? ''), 'meetup')
+            || str_contains(strtolower($req->exchange_type ?? ''), 'in-person')
+            || str_contains(strtolower($req->exchange_type ?? ''), 'person');
+
+        $isIntercity = !$isMeetup && (
+            str_contains(strtolower($req->exchange_type ?? ''), 'courier')
             || str_contains(strtolower($req->exchange_type ?? ''), 'intercity')
-            || ($req->offeredItem?->township?->state_region_id && $req->requestedItem?->township?->state_region_id && $req->offeredItem->township->state_region_id !== $req->requestedItem->township->state_region_id);
+            || ($req->offeredItem?->township?->state_region_id && $req->requestedItem?->township?->state_region_id && $req->offeredItem->township->state_region_id !== $req->requestedItem->township->state_region_id)
+        );
 
         $requesterTownship = $req->requester?->township?->name;
         $requesterRegion = $req->requester?->township?->stateRegion?->name;
@@ -625,9 +641,15 @@ class ExchangeRequestController extends Controller
         $requestedRegion = $exc->requestedItem?->township?->stateRegion?->name;
         $requestedCity = $requestedTownship && $requestedRegion ? "{$requestedTownship}, {$requestedRegion}" : ($exc->requestedItem?->city ?? 'Yangon');
 
-        $isIntercity = str_contains(strtolower($exc->exchange_type ?? ''), 'courier')
+        $isMeetup = str_contains(strtolower($exc->exchange_type ?? ''), 'meetup')
+            || str_contains(strtolower($exc->exchange_type ?? ''), 'in-person')
+            || str_contains(strtolower($exc->exchange_type ?? ''), 'person');
+
+        $isIntercity = !$isMeetup && (
+            str_contains(strtolower($exc->exchange_type ?? ''), 'courier')
             || str_contains(strtolower($exc->exchange_type ?? ''), 'intercity')
-            || ($exc->offeredItem?->township?->state_region_id && $exc->requestedItem?->township?->state_region_id && $exc->offeredItem->township->state_region_id !== $exc->requestedItem->township->state_region_id);
+            || ($exc->offeredItem?->township?->state_region_id && $exc->requestedItem?->township?->state_region_id && $exc->offeredItem->township->state_region_id !== $exc->requestedItem->township->state_region_id)
+        );
 
         $requesterTownship = $exc->requester?->township?->name;
         $requesterRegion = $exc->requester?->township?->stateRegion?->name;
@@ -772,7 +794,7 @@ class ExchangeRequestController extends Controller
             'id' => $exc->exchange_code ?: ('EXC-' . $exc->id),
             'exchangeCode' => $exc->exchange_code ?: ('EXC-' . $exc->id),
             'numericId' => $exc->id,
-            'status' => $exc->status === 'Accepted' ? 'Deposit Payment' : $exc->status,
+            'status' => ($exc->status === 'Accepted' && $isIntercity) ? 'Deposit Payment' : $exc->status,
             'isCompleted' => (bool) $isCompleted,
             'isIntercity' => (bool) $isIntercity,
             'intercityStage' => $intercityStage,

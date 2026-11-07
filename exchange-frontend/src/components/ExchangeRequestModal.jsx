@@ -45,6 +45,7 @@ export default function ExchangeRequestModal({
       setIsSubmitting(false);
       onProposalSuccess({
         targetItem: targetItem.title || targetItem.offeredItem?.title,
+        targetItemObj: targetItem.offeredItem || targetItem,
         offeredItem: chosenItem.title,
         offeredItemObj: chosenItem,
         handoverType,

@@ -193,30 +193,41 @@ export function ExchangeProvider({ children }) {
 
                 const stage = isCompleted ? 6 : (isInTransit ? 5 : (isArranged ? 4 : (isDepositsDone ? 3 : 2)));
 
+                const isOwner = currentUser?.id && String(req.recipient?.id || req.owner_id) === String(currentUser.id);
+                const myItem = isOwner ? req.requestedItem : req.offeredItem;
+                const partnerItem = isOwner ? req.offeredItem : req.requestedItem;
+                const myParty = isOwner ? req.recipient : req.requester;
+                const partnerParty = isOwner ? req.requester : req.recipient;
+
+                const handover = req.handoverMethod || req.exchange_type || 'In-Person Meetup';
+                const isMeetup = handover.toLowerCase().includes('meetup') || handover.toLowerCase().includes('person');
+
                 map.set(code, {
                   id: code,
                   exchangeCode: code,
                   numericId: req.id,
-                  status: isCompleted ? 'Completed' : (isInTransit ? 'In Transit' : (isDepositsDone ? 'Deposits Verified' : 'Deposit Payment')),
+                  status: isCompleted ? 'Completed' : (isMeetup ? 'Accepted' : (isInTransit ? 'In Transit' : (isDepositsDone ? 'Deposits Verified' : 'Deposit Payment'))),
                   isCompleted: isCompleted,
-                  isIntercity: Boolean(req.isIntercity),
+                  isIntercity: !isMeetup && Boolean(req.isIntercity),
                   intercityStage: stage,
-                  handoverMethod: req.handoverMethod || 'Intercity Courier Delivery',
+                  handoverMethod: handover,
                   initiatedDate: req.date || 'Recent',
                   completedDate: req.completedAt || null,
                   itemA: {
-                    title: req.offeredItem?.title || 'Offered Item',
-                    image: req.offeredItem?.image,
-                    ownerCity: req.offeredItem?.city,
-                    ownerName: req.requester?.name || 'You',
-                    category: req.offeredItem?.category || 'General',
+                    id: myItem?.id,
+                    title: myItem?.title || 'Your Item',
+                    image: myItem?.image,
+                    ownerCity: myItem?.city,
+                    ownerName: `${currentUser?.name || 'You'} (You)`,
+                    category: myItem?.category?.name || myItem?.category || 'General',
                   },
                   itemB: {
-                    title: req.requestedItem?.title || 'Requested Item',
-                    image: req.requestedItem?.image,
-                    ownerCity: req.requestedItem?.city,
-                    ownerName: req.recipient?.name || 'Member',
-                    category: req.requestedItem?.category || 'General',
+                    id: partnerItem?.id,
+                    title: partnerItem?.title || 'Partner Item',
+                    image: partnerItem?.image,
+                    ownerCity: partnerItem?.city,
+                    ownerName: partnerParty?.name || 'Partner',
+                    category: partnerItem?.category?.name || partnerItem?.category || 'General',
                   },
                   partyA: {
                     name: req.requester?.name || 'You',
@@ -288,7 +299,7 @@ export function ExchangeProvider({ children }) {
       }
     } catch (err) {
       console.warn('Could not load dynamic exchange requests from backend:', err?.message);
-      setRequests(prev => prev.length > 0 ? prev : INITIAL_REQUESTS);
+      setRequests(prev => prev);
     } finally {
       setRequestsLoading(false);
     }

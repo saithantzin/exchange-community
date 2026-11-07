@@ -81,15 +81,19 @@ export default function HomePage() {
     setIsExchangeModalOpen(true);
   };
 
-  const handleProposalSuccess = (proposalData) => {
-    sendExchangeRequest({
-      recipient: { name: 'Community Member' },
-      requestedItem: { title: proposalData.targetItem, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80' },
-      offeredItem: { title: proposalData.offeredItem, image: 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&q=80' },
+  const handleProposalSuccess = async (proposalData) => {
+    const targetObj = proposalData.targetItemObj || exchangeTargetItem;
+    const reqItem = targetObj?.offeredItem || targetObj;
+    const offItem = proposalData.offeredItemObj;
+
+    await sendExchangeRequest({
+      recipient: reqItem?.owner || { id: reqItem?.ownerId, name: 'Community Member' },
+      requestedItem: reqItem,
+      offeredItem: offItem,
       handoverMethod: proposalData.handoverType,
-      message: 'Proposal initiated from Home Page preview.'
+      message: proposalData.note || 'Proposal initiated from Home Page.'
     });
-    showToast(`Exchange proposal sent for "${proposalData.targetItem}"! Dual confirmation pending.`);
+    showToast(`Exchange proposal sent for "${reqItem?.title || proposalData.targetItem}"! Waiting for member response.`);
   };
 
   return (

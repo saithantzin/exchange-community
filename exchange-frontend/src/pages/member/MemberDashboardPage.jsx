@@ -193,12 +193,12 @@ export default function MemberDashboardPage() {
                   <div className="row g-3 align-items-center">
                     <div className="col-5 text-center">
                       <img
-                        src={ongoingExchanges[0].itemA.image}
+                        src={ongoingExchanges[0].itemA?.image || 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80'}
                         alt="Your Item"
                         className="rounded mb-2"
                         style={{ width: '58px', height: '58px', objectFit: 'cover' }}
                       />
-                      <div className="fw-semibold small text-truncate" style={{ fontSize: '0.86rem' }}>{ongoingExchanges[0].itemA.title}</div>
+                      <div className="fw-semibold small text-truncate" style={{ fontSize: '0.86rem' }}>{ongoingExchanges[0].itemA?.title || 'Your Provided Item'}</div>
                       <span className="badge bg-light text-dark border px-2.5 py-1 mt-1" style={{ fontSize: '0.74rem' }}>
                         You Provide
                       </span>
@@ -210,12 +210,12 @@ export default function MemberDashboardPage() {
 
                     <div className="col-5 text-center">
                       <img
-                        src={ongoingExchanges[0].itemB.image}
+                        src={ongoingExchanges[0].itemB?.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80'}
                         alt="Partner Item"
                         className="rounded mb-2"
                         style={{ width: '58px', height: '58px', objectFit: 'cover' }}
                       />
-                      <div className="fw-semibold small text-truncate" style={{ fontSize: '0.86rem' }}>{ongoingExchanges[0].itemB.title}</div>
+                      <div className="fw-semibold small text-truncate" style={{ fontSize: '0.86rem' }}>{ongoingExchanges[0].itemB?.title || 'Partner Item'}</div>
                       <span className="badge bg-light text-dark border px-2.5 py-1 mt-1" style={{ fontSize: '0.74rem' }}>
                         You Receive
                       </span>
