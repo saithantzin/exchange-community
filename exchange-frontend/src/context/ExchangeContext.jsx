@@ -269,7 +269,7 @@ export function ExchangeProvider({ children }) {
                       itemTitle: req.offeredItem?.title || 'Offered Item',
                       category: req.offeredItem?.category || 'General',
                       amount: 50000,
-                      status: isDepositsDone ? 'Verified' : 'Unpaid',
+                      status: isDepositsDone ? 'Verified' : 'Pending Payment',
                       paymentMethod: isDepositsDone ? 'KBZPay' : null,
                       referenceNumber: isDepositsDone ? 'KBZ-491204' : '',
                     },
@@ -277,7 +277,7 @@ export function ExchangeProvider({ children }) {
                       itemTitle: req.requestedItem?.title || 'Requested Item',
                       category: req.requestedItem?.category || 'General',
                       amount: 50000,
-                      status: isDepositsDone ? 'Verified' : 'Unpaid',
+                      status: isDepositsDone ? 'Verified' : 'Pending Payment',
                       paymentMethod: isDepositsDone ? 'WavePay' : null,
                       referenceNumber: isDepositsDone ? 'WAVE-819441' : '',
                     },
@@ -526,7 +526,7 @@ export function ExchangeProvider({ children }) {
             itemTitle: req.requestedItem.title,
             category: req.requestedItem.category || 'Electronics',
             amount: partyAAmount,
-            status: 'Unpaid', // 'Unpaid' | 'Payment Submitted' | 'Verified' | 'Rejected'
+            status: 'Pending Payment',
             paymentMethod: null,
             referenceNumber: '',
             slipImage: null,
@@ -537,7 +537,7 @@ export function ExchangeProvider({ children }) {
             itemTitle: req.offeredItem.title,
             category: req.offeredItem.category || 'Electronics',
             amount: partyBAmount,
-            status: 'Unpaid',
+            status: 'Pending Payment',
             paymentMethod: null,
             referenceNumber: '',
             slipImage: null,
@@ -631,229 +631,59 @@ export function ExchangeProvider({ children }) {
 
   // Complete Exchange (Direct Handover / In-Person Meetup)
   const completeExchange = async (exchangeId, notes = '') => {
-    let targetOfferedId = null;
-    let targetRequestedId = null;
-
-    // 1. Persist to Backend API if token present
     try {
-      const cleanId = String(exchangeId).replace(/^EXC-/, '').trim();
-      await exchangeService.completeExchange(cleanId, { notes });
+      const cleanId = String(exchangeId).replace(/^#/, '').trim();
+      const res = await exchangeService.completeExchange(cleanId, { notes });
+      await refreshExchanges();
+      await refreshRequests();
+      await refreshItems();
+      await refreshMyItems();
+      return res;
     } catch (err) {
       console.warn('Backend complete exchange notice:', err?.message);
+      throw err;
     }
-
-    // 2. Update local exchanges state
-    setExchanges(prev => prev.map(exc => {
-      const isMatch = exc.id === exchangeId ||
-                      exc.exchangeCode === exchangeId ||
-                      String(exc.numericId) === String(exchangeId) ||
-                      ('EXC-' + exc.numericId) === String(exchangeId);
-      if (!isMatch) return exc;
-      targetOfferedId = exc.offeredItemId || exc.itemA?.id;
-      targetRequestedId = exc.requestedItemId || exc.itemB?.id;
-      return {
-        ...exc,
-        status: 'Completed',
-        isCompleted: true,
-        completedDate: new Date().toISOString().split('T')[0],
-        completionNotes: notes || 'Item exchanged successfully in person.'
-      };
-    }));
-
-    // 3. Update local requests state
-    setRequests(prev => prev.map(req => {
-      const isMatch = String(req.id) === String(exchangeId).replace(/^EXC-/, '').trim() ||
-                      req.exchange_code === exchangeId ||
-                      ('EXC-' + req.id) === String(exchangeId);
-      if (!isMatch) return req;
-      targetOfferedId = targetOfferedId || req.offeredItem?.id;
-      targetRequestedId = targetRequestedId || req.requestedItem?.id;
-      return {
-        ...req,
-        status: 'Completed',
-        completedAt: new Date().toISOString().split('T')[0]
-      };
-    }));
-
-    // 4. Update availability_status of exchanged items to 'Not Available'
-    setItems(prev => prev.map(it => {
-      if ((targetOfferedId && it.id === targetOfferedId) || (targetRequestedId && it.id === targetRequestedId)) {
-        return { ...it, status: 'Not Available', availability_status: 'Not Available' };
-      }
-      return it;
-    }));
-
-    setMyItems(prev => prev.map(it => {
-      if ((targetOfferedId && it.id === targetOfferedId) || (targetRequestedId && it.id === targetRequestedId)) {
-        return { ...it, status: 'Not Available', availability_status: 'Not Available' };
-      }
-      return it;
-    }));
-
-    // Refresh dynamically from backend
-    setTimeout(() => {
-      refreshItems();
-      refreshMyItems();
-    }, 500);
-  };
-
-  // Submit Deposit Payment Proof (Requirement 3: State 2)
-  const submitDeposit = (exchangeId, partyRole = 'partyA', paymentData = {}) => {
-    setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
-      const currentDeposits = exc.deposits || {};
-      const currentPartyDeposit = currentDeposits[partyRole] || {};
-      
-      const updatedPartyDeposit = {
-        ...currentPartyDeposit,
-        status: 'Payment Submitted',
-        paymentMethod: paymentData.paymentMethod || 'KBZPay',
-        referenceNumber: paymentData.referenceNumber || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-        slipImage: paymentData.slipImage || null,
-        submittedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      const updatedDeposits = {
-        ...currentDeposits,
-        [partyRole]: updatedPartyDeposit
-      };
-
-      return {
-        ...exc,
-        deposits: updatedDeposits,
-        status: 'Deposit Submitted'
-      };
-    }));
-  };
-
-  // Verify Deposit (Admin or automated simulation)
-  const verifyDeposit = (exchangeId, partyRole = 'partyA') => {
-    setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
-      const currentDeposits = exc.deposits || {};
-      const currentPartyDeposit = currentDeposits[partyRole] || {};
-      
-      const updatedPartyDeposit = {
-        ...currentPartyDeposit,
-        status: 'Verified',
-        verifiedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      const updatedDeposits = {
-        ...currentDeposits,
-        [partyRole]: updatedPartyDeposit
-      };
-
-      const bothDepositsVerified = Boolean(
-        updatedDeposits.partyA?.status === 'Verified' &&
-        updatedDeposits.partyB?.status === 'Verified'
-      );
-
-      return {
-        ...exc,
-        deposits: updatedDeposits,
-        // State 3 automatically unlocks once BOTH deposits are verified!
-        intercityStage: bothDepositsVerified ? 3 : (exc.intercityStage || 2),
-        status: bothDepositsVerified ? 'Deposits Verified' : exc.status
-      };
-    }));
   };
 
   // Confirm External Courier Arrangement (State 3 -> State 4)
-  const confirmCourierArrangement = (exchangeId) => {
-    setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
-      return {
-        ...exc,
-        courierArrangement: {
-          confirmed: true,
-          confirmedAt: new Date().toISOString().split('T')[0]
-        },
-        intercityStage: 4, // State 4: Courier Arrangement & Shipping
-        status: 'Arrangement Confirmed - Ready to Ship'
-      };
-    }));
+  const confirmCourierArrangement = async (exchangeId) => {
+    try {
+      const cleanId = String(exchangeId).replace(/^#/, '').trim();
+      const res = await exchangeService.confirmCourierArrangement(cleanId);
+      await refreshExchanges();
+      return res;
+    } catch (err) {
+      console.warn('Backend confirm courier arrangement notice:', err?.message);
+    }
   };
 
   // Two-Sided Confirmation (For Intercity Exchanges)
-  const confirmReceipt = (exchangeId, partyRole = 'partyA', notes = '') => {
-    setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
-      
-      const updatedPartyA = partyRole === 'partyA' 
-        ? { ...(exc.partyA || {}), confirmedReceipt: true, receiptNotes: notes } 
-        : (exc.partyA || { confirmedReceipt: true });
-
-      const updatedPartyB = partyRole === 'partyB' 
-        ? { ...(exc.partyB || {}), confirmedReceipt: true, receiptNotes: notes } 
-        : (exc.partyB || { confirmedReceipt: true });
-
-      const bothConfirmed = Boolean(updatedPartyA?.confirmedReceipt && updatedPartyB?.confirmedReceipt);
-
-      return {
-        ...exc,
-        partyA: updatedPartyA,
-        partyB: updatedPartyB,
-        // When both confirmed, advance to State 6: Deposit Refund!
-        intercityStage: bothConfirmed ? 6 : 5,
-        status: bothConfirmed ? 'Completed' : 'Partially Received',
-        isCompleted: bothConfirmed,
-        completedDate: bothConfirmed ? new Date().toISOString().split('T')[0] : exc.completedDate,
-        completionNotes: bothConfirmed ? 'Both members verified and confirmed receipt.' : exc.completionNotes,
-        // Deposit refund workflow initiated upon successful completion
-        refundWorkflow: bothConfirmed ? {
-          initiated: true,
-          status: 'Awaiting Member Payout Details',
-          partyA: {
-            amount: exc.deposits?.partyA?.amount || 100000,
-            walletType: 'KBZPay',
-            accountNumber: '',
-            accountName: '',
-            status: 'Pending Details',
-            requestedAt: null,
-            transactionRef: null
-          },
-          partyB: {
-            amount: exc.deposits?.partyB?.amount || 100000,
-            walletType: 'WavePay',
-            accountNumber: '09450987654',
-            accountName: 'Kyaw Zin Htet',
-            status: 'Processing Payout',
-            requestedAt: 'Today',
-            transactionRef: null
-          }
-        } : (exc.refundWorkflow || { initiated: false, status: 'Pending' })
-      };
-    }));
+  const confirmReceipt = async (exchangeId, partyRole = 'partyA', notes = '') => {
+    try {
+      const cleanId = String(exchangeId).replace(/^#/, '').trim();
+      const res = await exchangeService.confirmReceipt(cleanId, {
+        condition_notes: notes,
+        partyRole
+      });
+      await refreshExchanges();
+      await refreshRequests();
+      await refreshItems();
+      return res;
+    } catch (err) {
+      console.warn('Backend confirm receipt notice:', err?.message);
+    }
   };
 
   // State 6: Submit Refund Payout Request (User enters account / phone number)
-  const submitRefundRequest = (exchangeId, partyRole = 'partyA', payoutData = {}) => {
-    setExchanges(prev => prev.map(exc => {
-      if (exc.id !== exchangeId) return exc;
-      const currentRefund = exc.refundWorkflow || {};
-      const currentPartyRefund = currentRefund[partyRole] || {};
-
-      const updatedPartyRefund = {
-        ...currentPartyRefund,
-        walletType: payoutData.walletType || 'KBZPay',
-        accountNumber: payoutData.accountNumber || '',
-        accountName: payoutData.accountName || '',
-        amount: exc.deposits?.[partyRole]?.amount || 100000,
-        status: 'Processing Payout',
-        requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      return {
-        ...exc,
-        refundWorkflow: {
-          ...currentRefund,
-          initiated: true,
-          status: 'Processing Payout',
-          [partyRole]: updatedPartyRefund
-        }
-      };
-    }));
+  const submitRefundRequest = async (exchangeId, partyRole = 'partyA', payoutData = {}) => {
+    try {
+      const cleanId = String(exchangeId).replace(/^#/, '').trim();
+      const res = await exchangeService.requestRefund(cleanId, payoutData);
+      await refreshExchanges();
+      return res;
+    } catch (err) {
+      console.warn('Backend refund request notice:', err?.message);
+    }
   };
 
   // State 6: Complete Refund Payout (Admin / System simulation)
@@ -1001,8 +831,6 @@ export function ExchangeProvider({ children }) {
         rejectRequest,
         cancelRequest,
         submitReview,
-        submitDeposit,
-        verifyDeposit,
         confirmCourierArrangement,
         updateShipping,
         updateCourierDispatch,

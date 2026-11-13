@@ -8,10 +8,11 @@ export function AdminRouteGuard() {
   const location = useLocation();
 
   const token = localStorage.getItem('admin_token') || localStorage.getItem('recirculate_token');
+  const hasSanctumToken = typeof token === 'string' && /^\d+\|/.test(token);
   const isAdmin = currentUser?.role === 'admin' || Boolean(localStorage.getItem('admin_token'));
 
   // If no admin session exists, redirect to the unified login page
-  if (!token || !isAdmin) {
+  if (!hasSanctumToken || !isAdmin) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

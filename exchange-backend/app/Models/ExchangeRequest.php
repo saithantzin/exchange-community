@@ -25,6 +25,10 @@ class ExchangeRequest extends Model
         'completed_at',
     ];
 
+    protected $casts = [
+        'completed_at' => 'datetime',
+    ];
+
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requester_id');

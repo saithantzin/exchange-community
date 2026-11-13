@@ -33,73 +33,50 @@ export default function Dashboard() {
   const [dynamicStats, setDynamicStats] = useState(null);
   const [approvingId, setApprovingId] = useState(null);
   const [depositNotice, setDepositNotice] = useState(null);
+  const [pendingEvidenceUrls, setPendingEvidenceUrls] = useState({});
 
-  const [pendingDepositList, setPendingDepositList] = useState([
-    {
-      id: 'DEP-101',
-      exchangeCode: 'EXC-8328',
-      exchangeNumericId: '6',
-      partyRole: 'partyA',
-      memberName: 'Su Su Win Htike',
-      itemTitle: 'Giant ATX Mountain Bike',
-      category: 'Sports & Outdoors',
-      amount: 50000,
-      paymentMethod: 'KBZPay',
-      referenceNumber: 'KBZ-891042',
-      status: 'Pending',
-      submittedAt: 'Today 14:15'
-    },
-    {
-      id: 'DEP-102',
-      exchangeCode: 'EXC-8328',
-      exchangeNumericId: '6',
-      partyRole: 'partyB',
-      memberName: 'Wai Yan',
-      itemTitle: 'Harry Potter Book Collections',
-      category: 'Books & Collectible',
-      amount: 50000,
-      paymentMethod: 'WavePay',
-      referenceNumber: 'WAVE-442190',
-      status: 'Pending',
-      submittedAt: 'Today 14:20'
-    }
-  ]);
+  const [pendingDepositList, setPendingDepositList] = useState([]);
+  const [depositsLoading, setDepositsLoading] = useState(true);
+  const [depositLoadError, setDepositLoadError] = useState(null);
+
+  const fetchDeposits = () => {
+    setDepositsLoading(true);
+    setDepositLoadError(null);
+    return exchangeService.getAdminPendingDeposits()
+      .then(res => {
+        if (res?.success && Array.isArray(res.data)) {
+          setPendingDepositList(res.data);
+          return;
+        }
+        throw new Error(res?.message || 'Invalid pending deposit response.');
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic pending deposits from API:', err?.message);
+        setDepositLoadError(err?.response?.data?.message || err?.message || 'Could not load pending deposit submissions.');
+      })
+      .finally(() => {
+        setDepositsLoading(false);
+      });
+  };
 
   const handleApproveDepositSlip = async (dep) => {
+    if (approvingId) return;
     setApprovingId(dep.id);
     try {
-      await exchangeService.adminApproveDeposit(dep.exchangeNumericId || dep.exchangeCode, {
+      const res = await exchangeService.adminApproveDeposit(dep.exchangeNumericId || dep.exchangeCode, {
         partyRole: dep.partyRole,
-        paymentMethod: dep.paymentMethod,
-        referenceNumber: dep.referenceNumber
       });
-    } catch (err) {
-      console.warn('Backend deposit approval notice:', err?.message);
-    }
-
-    setPendingDepositList(prev => prev.map(item => {
-      if (item.id === dep.id) {
-        return { ...item, status: 'Verified' };
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'The server did not confirm deposit approval.');
       }
-      return item;
-    }));
-
-    setDepositNotice(`Deposit Approved: ${(dep.amount).toLocaleString()} MMK for ${dep.memberName} on ${dep.exchangeCode} has been verified.`);
-
-    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setLogs(prev => [
-      {
-        id: `LOG-${Date.now().toString().slice(-4)}`,
-        action: 'DEPOSIT_APPROVED',
-        admin: 'Platform Administrator',
-        details: `Approved ${dep.paymentMethod} escrow deposit of ${(dep.amount).toLocaleString()} MMK for ${dep.memberName} (${dep.exchangeCode}).`,
-        timestamp: `Today, ${nowTime}`,
-        ip: '127.0.0.1'
-      },
-      ...prev
-    ]);
-
-    setApprovingId(null);
+      setDepositNotice(`Deposit Approved: ${(dep.amount).toLocaleString()} MMK for ${dep.memberName} on ${dep.exchangeCode} has been verified.`);
+      fetchStats();
+      await fetchDeposits();
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to approve deposit slip.');
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const fetchStats = () => {
@@ -120,7 +97,35 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStats();
+    fetchDeposits();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const objectUrls = [];
+    Promise.all(pendingDepositList.map(async (dep) => {
+      if (!dep.slipImage) return [dep.id, null];
+      try {
+        const url = await exchangeService.getAdminDepositEvidence(dep.exchangeNumericId, dep.partyRole);
+        objectUrls.push(url);
+        return [dep.id, url];
+      } catch (err) {
+        console.warn(`Could not load payment evidence for ${dep.id}:`, err?.message);
+        return [dep.id, null];
+      }
+    })).then((entries) => {
+      if (cancelled) {
+        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      setPendingEvidenceUrls(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [pendingDepositList]);
 
   const activeMembers = dynamicStats?.members?.active ?? ADMIN_MEMBERS.filter(m => m.status === 'Active').length;
   const totalMembers = dynamicStats?.members?.total ?? 1420;
@@ -307,10 +312,10 @@ export default function Dashboard() {
             </div>
             <div>
               <h3 className="font-bold text-base text-[#2C1D15]">
-                Escrow Deposit Approvals Queue
+                Escrow Deposit Approvals Queue (Intercity Courier Delivery Only)
               </h3>
               <p className="text-xs text-[#8C7A6B]">
-                Verify payment slips submitted by participants to unlock stage 3 contact information and shipping.
+                Verify payment slips submitted for intercity swaps between different cities. In-person meetups do not require deposits.
               </p>
             </div>
           </div>
@@ -329,11 +334,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        {pendingDepositList.length === 0 ? (
+        {depositsLoading ? (
+          <div className="p-6 text-center text-xs text-[#8C7A6B] bg-[#F9F6F0] rounded-xl border border-dashed border-[#DDD1BF]">
+            Loading pending deposit submissions...
+          </div>
+        ) : depositLoadError ? (
+          <div className="p-6 text-center text-xs text-rose-800 bg-rose-50 rounded-xl border border-rose-200">
+            {depositLoadError}
+          </div>
+        ) : pendingDepositList.length === 0 ? (
           <div className="p-6 text-center text-xs text-[#8C7A6B] bg-[#F9F6F0] rounded-xl border border-dashed border-[#DDD1BF]">
             <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
-            <div className="font-bold text-[#2C1D15]">All Escrow Deposits Approved</div>
-            <div>No pending deposit slips awaiting review at this time.</div>
+            <div className="font-bold text-[#2C1D15]">No deposit slips awaiting review</div>
+            <div>Submitted intercity deposit slips will appear here for administrator review. In-person swaps do not require deposits.</div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -365,6 +378,12 @@ export default function Dashboard() {
                       <span>Method: <strong className="text-[#2C1D15]">{dep.paymentMethod}</strong></span>
                       <span>Ref: <code className="bg-white px-1.5 py-0.5 rounded border border-[#DDD1BF] font-mono">{dep.referenceNumber}</code></span>
                     </div>
+                    {pendingEvidenceUrls[dep.id] && (
+                      <a href={pendingEvidenceUrls[dep.id]} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2">
+                        <img src={pendingEvidenceUrls[dep.id]} alt="Uploaded payment slip" className="h-12 w-16 rounded border border-[#DDD1BF] object-cover" />
+                        <span className="text-xs font-semibold text-[#5C4033] underline">View uploaded payment slip</span>
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -378,7 +397,7 @@ export default function Dashboard() {
                     <>
                       <button
                         onClick={() => handleApproveDepositSlip(dep)}
-                        disabled={approvingId === dep.id}
+                        disabled={approvingId !== null}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition-colors text-xs font-bold shadow-xs active:scale-95"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />

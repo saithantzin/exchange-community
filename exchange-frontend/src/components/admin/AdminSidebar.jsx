@@ -5,7 +5,7 @@ import {
   Users,
   FolderTree,
   PackageCheck,
-  Repeat,
+  Wallet,
   AlertTriangle,
   History,
   UserCog,
@@ -32,7 +32,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, mobileOpen, 
     { name: 'Member Management', path: '/admin/members', icon: Users },
     { name: 'Category Management', path: '/admin/categories', icon: FolderTree },
     { name: 'Item Management', path: '/admin/items', icon: PackageCheck },
-    { name: 'Exchange Monitoring', path: '/admin/exchanges', icon: Repeat },
+    { name: 'Escrow & Refunds', path: '/admin/exchanges', icon: Wallet },
     { name: 'Reports & Disputes', path: '/admin/reports', icon: AlertTriangle },
     { name: 'Exchange History', path: '/admin/history', icon: History },
     { name: 'Admin Profile', path: '/admin/profile', icon: UserCog }
@@ -99,7 +99,7 @@ export default function AdminSidebar({ isCollapsed, setIsCollapsed, mobileOpen, 
                         : '!text-white hover:bg-[#3d291e] hover:!text-white'
                     } ${isCollapsed && !mobileOpen ? 'justify-center px-0' : ''}`
                   }
-                  style={({ isActive }) => ({
+                  style={() => ({
                     textDecoration: 'none',
                     color: '#ffffff'
                   })}

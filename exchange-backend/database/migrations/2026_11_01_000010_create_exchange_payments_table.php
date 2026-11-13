@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('payment_method')->nullable(); // KBZPay, WavePay, AYA Pay, CB Pay
             $table->string('reference_number')->nullable();
             $table->string('payment_proof')->nullable(); // Screenshot image URL
-            $table->string('payment_status')->default('Unpaid'); // Unpaid, Payment Submitted, Verified, Rejected
+            $table->string('payment_status')->default('Pending Payment'); // Pending Payment, Payment Submitted, Verified, Rejected
             $table->text('rejection_reason')->nullable();
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();

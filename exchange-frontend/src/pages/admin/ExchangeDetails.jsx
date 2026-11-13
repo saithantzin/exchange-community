@@ -26,15 +26,13 @@ import {
 } from 'lucide-react';
 import StatusBadge from '../../components/admin/StatusBadge';
 import ConfirmModal from '../../components/admin/ConfirmModal';
-import { ADMIN_EXCHANGES } from '../../data/adminMockData';
 import exchangeService from '../../services/exchangeService';
 
 export default function ExchangeDetails() {
   const { id } = useParams();
-  const [exchange, setExchange] = useState(() => {
-    return ADMIN_EXCHANGES.find((e) => String(e.id) === String(id) || String(e.numericId) === String(id)) || null;
-  });
+  const [exchange, setExchange] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // Fetch real exchange record from backend API
   React.useEffect(() => {
@@ -45,16 +43,14 @@ export default function ExchangeDetails() {
         if (!isMounted) return;
         if (res?.success && res.data) {
           setExchange(res.data);
-        } else if (res?.data) {
-          setExchange(res.data);
+          setLoadError(null);
+        } else {
+          throw new Error(res?.message || 'Could not load exchange details.');
         }
       })
       .catch((err) => {
-        console.warn('Could not load exchange from API, using fallback if available:', err?.message);
-        if (!exchange) {
-          const fallback = ADMIN_EXCHANGES.find((e) => String(e.id) === String(id) || String(e.numericId) === String(id)) || ADMIN_EXCHANGES[0];
-          setExchange(fallback);
-        }
+        console.warn('Could not load exchange from API:', err?.message);
+        if (isMounted) setLoadError(err?.response?.data?.message || err?.message || 'Could not load exchange details.');
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -63,13 +59,45 @@ export default function ExchangeDetails() {
     return () => { isMounted = false; };
   }, [id]);
 
+  React.useEffect(() => {
+    const exchangeId = exchange?.numericId;
+    if (!exchangeId) return undefined;
+
+    let cancelled = false;
+    const objectUrls = [];
+    Promise.all(['partyA', 'partyB'].map(async (partyRole) => {
+      if (!exchange.deposits?.[partyRole]?.slipImage) return [partyRole, null];
+      try {
+        const url = await exchangeService.getAdminDepositEvidence(exchangeId, partyRole);
+        objectUrls.push(url);
+        return [partyRole, url];
+      } catch (err) {
+        console.warn(`Could not load ${partyRole} deposit evidence:`, err?.message);
+        return [partyRole, null];
+      }
+    })).then((entries) => {
+      if (cancelled) {
+        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      setDepositEvidence(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [exchange?.numericId, exchange?.deposits?.partyA?.slipImage, exchange?.deposits?.partyB?.slipImage]);
+
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     action: ''
   });
 
   const [previewImage, setPreviewImage] = useState(null);
+  const [depositEvidence, setDepositEvidence] = useState({});
   const [copiedField, setCopiedField] = useState(null);
+  const [processingDepositRole, setProcessingDepositRole] = useState(null);
 
   // Refund release modal state
   const [payoutModal, setPayoutModal] = useState({
@@ -103,7 +131,7 @@ export default function ExchangeDetails() {
   if (!exchange) {
     return (
       <div className="p-8 text-center text-[#8C7A6B]">
-        <p>Exchange record not found.</p>
+        <p>{loadError || 'Exchange record not found.'}</p>
         <Link to="/admin/exchanges" className="text-xs text-[#5C4033] underline mt-2 inline-block">
           Return to Exchanges
         </Link>
@@ -148,54 +176,20 @@ export default function ExchangeDetails() {
 
   // Admin approves deposit slip
   const handleApproveDeposit = async (partyRole) => {
-    const partyName = partyRole === 'partyA' ? partyA.name : partyB.name;
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    if (processingDepositRole) return;
+    setProcessingDepositRole(partyRole);
 
     try {
       const res = await exchangeService.adminApproveDeposit(exchange.numericId || exchange.id || id, { partyRole });
-      if (res?.success && res.data) {
-        setExchange(res.data);
-        return;
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'The server did not confirm deposit approval.');
       }
+      setExchange(res.data);
     } catch (err) {
-      console.warn('API approve error, applying optimistic fallback:', err?.message);
+      alert(err?.response?.data?.message || err?.message || 'Failed to approve deposit. No local status was changed.');
+    } finally {
+      setProcessingDepositRole(null);
     }
-
-    setExchange((prev) => {
-      const nextDeposits = {
-        ...prev.deposits,
-        [partyRole]: {
-          ...prev.deposits[partyRole],
-          status: 'Verified',
-          verifiedAt: nowStr
-        }
-      };
-
-      const otherRole = partyRole === 'partyA' ? 'partyB' : 'partyA';
-      const isOtherVerified = nextDeposits[otherRole]?.status === 'Verified';
-
-      const newHistory = [
-        ...prev.history,
-        {
-          date: nowStr,
-          event: `Admin verified ${partyName}'s escrow deposit of ${(nextDeposits[partyRole].amount || 100000).toLocaleString()} MMK.`
-        }
-      ];
-
-      if (isOtherVerified) {
-        newHistory.push({
-          date: nowStr,
-          event: 'Both participants’ escrow deposits verified! State 3 External Contact Information unlocked.'
-        });
-      }
-
-      return {
-        ...prev,
-        deposits: nextDeposits,
-        status: isOtherVerified ? 'Shipping' : prev.status,
-        history: newHistory
-      };
-    });
   };
 
   // Open Reject Modal
@@ -205,45 +199,32 @@ export default function ExchangeDetails() {
       isOpen: true,
       partyRole,
       partyName,
-      reason: 'Slip image unreadable or transaction reference not found on bank statement.'
+      reason: ''
     });
   };
 
   // Confirm Reject Deposit
   const handleConfirmRejectDeposit = async () => {
-    const { partyRole, partyName, reason } = rejectModal;
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const { partyRole, reason } = rejectModal;
+    if (!partyRole || processingDepositRole) return;
+    if (reason.trim().length < 3) {
+      alert('Enter a rejection reason of at least 3 characters.');
+      return;
+    }
+    setProcessingDepositRole(partyRole);
 
     try {
       const res = await exchangeService.adminRejectDeposit(exchange.numericId || exchange.id || id, { partyRole, reason });
-      if (res?.success && res.data) {
-        setExchange(res.data);
-        setRejectModal({ isOpen: false, partyRole: null, partyName: '', reason: '' });
-        return;
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'The server did not confirm deposit rejection.');
       }
+      setExchange(res.data);
+      setRejectModal({ isOpen: false, partyRole: null, partyName: '', reason: '' });
     } catch (err) {
-      console.warn('API reject error, applying optimistic fallback:', err?.message);
+      alert(err?.response?.data?.message || err?.message || 'Failed to reject deposit. No local status was changed.');
+    } finally {
+      setProcessingDepositRole(null);
     }
-
-    setExchange((prev) => ({
-      ...prev,
-      deposits: {
-        ...prev.deposits,
-        [partyRole]: {
-          ...prev.deposits[partyRole],
-          status: 'Rejected',
-          rejectionReason: reason
-        }
-      },
-      history: [
-        ...prev.history,
-        {
-          date: nowStr,
-          event: `Admin rejected ${partyName}'s deposit slip. Reason: ${reason}`
-        }
-      ]
-    }));
-    setRejectModal({ isOpen: false, partyRole: null, partyName: '', reason: '' });
   };
 
   // Open Refund Payout Modal
@@ -266,66 +247,16 @@ export default function ExchangeDetails() {
 
   // Confirm Release Refund
   const handleConfirmReleasePayout = async () => {
-    const { partyRole, partyName, amount, provider, accountNumber, txRef } = payoutModal;
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
-
     try {
       const res = await exchangeService.adminProcessRefund(exchange.numericId || exchange.id || id, payoutModal);
-      if (res?.success && res.data) {
-        setExchange(res.data);
-        setPayoutModal({ isOpen: false, partyRole: null, partyName: '', amount: 0, provider: '', accountNumber: '', accountName: '', txRef: '' });
-        return;
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'The server did not confirm the refund payout.');
       }
+      setExchange(res.data);
+      setPayoutModal({ isOpen: false, partyRole: null, partyName: '', amount: 0, provider: '', accountNumber: '', accountName: '', txRef: '' });
     } catch (err) {
-      console.warn('API refund process error, applying optimistic fallback:', err?.message);
+      alert(err?.response?.data?.message || err?.message || 'Failed to release refund. No local status was changed.');
     }
-
-    setExchange((prev) => {
-      const nextRefund = {
-        ...prev.refundWorkflow,
-        [partyRole]: {
-          ...(prev.refundWorkflow?.[partyRole] || {}),
-          status: 'Completed',
-          refundTransactionRef: txRef,
-          completedAt: nowStr
-        }
-      };
-
-      const otherRole = partyRole === 'partyA' ? 'partyB' : 'partyA';
-      const isOtherCompleted = nextRefund[otherRole]?.status === 'Completed';
-
-      const newHistory = [
-        ...prev.history,
-        {
-          date: nowStr,
-          event: `Admin released ${amount.toLocaleString()} MMK escrow deposit refund to ${partyName} via ${provider} (${accountNumber}, Ref: ${txRef}).`
-        }
-      ];
-
-      if (isOtherCompleted) {
-        newHistory.push({
-          date: nowStr,
-          event: 'All escrow deposit funds successfully refunded to both participants.'
-        });
-      }
-
-      return {
-        ...prev,
-        refundWorkflow: nextRefund,
-        history: newHistory
-      };
-    });
-
-    setPayoutModal({
-      isOpen: false,
-      partyRole: null,
-      partyName: '',
-      amount: 0,
-      provider: '',
-      accountNumber: '',
-      accountName: '',
-      txRef: ''
-    });
   };
 
   return (
@@ -427,7 +358,7 @@ export default function ExchangeDetails() {
                       : 'bg-stone-200 text-stone-700'
                   }`}
                 >
-                  {partyADeposit?.status || 'Unpaid'}
+                  {partyADeposit?.status || 'Pending Payment'}
                 </span>
               </div>
 
@@ -447,17 +378,17 @@ export default function ExchangeDetails() {
               </div>
 
               {/* Payment Slip Image Preview */}
-              {partyADeposit?.slipImage && (
+              {depositEvidence.partyA && (
                 <div className="pt-2 border-t border-[#EBE2D8]">
                   <span className="text-[10px] font-medium text-[#8C7A6B] block mb-1">
                     Payment Transfer Slip:
                   </span>
                   <div
-                    onClick={() => setPreviewImage(partyADeposit.slipImage)}
+                    onClick={() => setPreviewImage(depositEvidence.partyA)}
                     className="relative group cursor-pointer rounded-lg overflow-hidden border border-[#DDD1BF] h-28 bg-stone-100 flex items-center justify-center"
                   >
                     <img
-                      src={partyADeposit.slipImage}
+                      src={depositEvidence.partyA}
                       alt="Party A Payment Slip"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
@@ -474,13 +405,15 @@ export default function ExchangeDetails() {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => handleApproveDeposit('partyA')}
+                    disabled={processingDepositRole !== null}
                     className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-semibold flex items-center justify-center gap-1 shadow-xs transition-colors"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Approve Deposit</span>
+                    <span>{processingDepositRole === 'partyA' ? 'Approving...' : 'Approve Deposit'}</span>
                   </button>
                   <button
                     onClick={() => openRejectModal('partyA')}
+                    disabled={processingDepositRole !== null}
                     className="py-1.5 px-3 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                   >
                     <XCircle className="w-3.5 h-3.5" />
@@ -492,8 +425,14 @@ export default function ExchangeDetails() {
               {partyADeposit?.status === 'Verified' && (
                 <div className="p-2 bg-emerald-50 rounded-lg text-[11px] text-emerald-800 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Verified & held safely in platform escrow custody.</span>
+                  <span>
+                    Payment verified{partyADeposit.verifiedBy ? ` by ${partyADeposit.verifiedBy}` : ''}.
+                    {partyADeposit.verifiedAt ? ` ${partyADeposit.verifiedAt}` : ''}
+                  </span>
                 </div>
+              )}
+              {partyADeposit?.rejectionReason && partyADeposit.status === 'Rejected' && (
+                <p className="text-xs text-rose-800">Rejection reason: {partyADeposit.rejectionReason}</p>
               )}
             </div>
 
@@ -517,7 +456,7 @@ export default function ExchangeDetails() {
                       : 'bg-stone-200 text-stone-700'
                   }`}
                 >
-                  {partyBDeposit?.status || 'Unpaid'}
+                  {partyBDeposit?.status || 'Pending Payment'}
                 </span>
               </div>
 
@@ -537,17 +476,17 @@ export default function ExchangeDetails() {
               </div>
 
               {/* Payment Slip Image Preview */}
-              {partyBDeposit?.slipImage && (
+              {depositEvidence.partyB && (
                 <div className="pt-2 border-t border-[#EBE2D8]">
                   <span className="text-[10px] font-medium text-[#8C7A6B] block mb-1">
                     Payment Transfer Slip:
                   </span>
                   <div
-                    onClick={() => setPreviewImage(partyBDeposit.slipImage)}
+                    onClick={() => setPreviewImage(depositEvidence.partyB)}
                     className="relative group cursor-pointer rounded-lg overflow-hidden border border-[#DDD1BF] h-28 bg-stone-100 flex items-center justify-center"
                   >
                     <img
-                      src={partyBDeposit.slipImage}
+                      src={depositEvidence.partyB}
                       alt="Party B Payment Slip"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
@@ -564,13 +503,15 @@ export default function ExchangeDetails() {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => handleApproveDeposit('partyB')}
+                    disabled={processingDepositRole !== null}
                     className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-semibold flex items-center justify-center gap-1 shadow-xs transition-colors"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Approve Deposit</span>
+                    <span>{processingDepositRole === 'partyB' ? 'Approving...' : 'Approve Deposit'}</span>
                   </button>
                   <button
                     onClick={() => openRejectModal('partyB')}
+                    disabled={processingDepositRole !== null}
                     className="py-1.5 px-3 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                   >
                     <XCircle className="w-3.5 h-3.5" />
@@ -582,11 +523,37 @@ export default function ExchangeDetails() {
               {partyBDeposit?.status === 'Verified' && (
                 <div className="p-2 bg-emerald-50 rounded-lg text-[11px] text-emerald-800 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Verified & held safely in platform escrow custody.</span>
+                  <span>
+                    Payment verified{partyBDeposit.verifiedBy ? ` by ${partyBDeposit.verifiedBy}` : ''}.
+                    {partyBDeposit.verifiedAt ? ` ${partyBDeposit.verifiedAt}` : ''}
+                  </span>
                 </div>
+              )}
+              {partyBDeposit?.rejectionReason && partyBDeposit.status === 'Rejected' && (
+                <p className="text-xs text-rose-800">Rejection reason: {partyBDeposit.rejectionReason}</p>
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* IN-PERSON MEETUP PROTOCOL NOTICE */}
+      {!isIntercity && (
+        <div className="bg-[#FAF8F5] border border-[#DDD1BF] rounded-xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800">
+              <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-[#2C1D15]">In-Person Meetup Swap Protocol (No Deposit Required)</h3>
+              <p className="text-xs text-[#5C4033] mt-0.5">
+                This exchange is scheduled for direct face-to-face handover at {exchange.meetupLocation || 'a local public meeting place'}. Escrow deposits are strictly reserved for Intercity Courier Delivery.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full whitespace-nowrap">
+            2 States: Accept & Handover
+          </span>
         </div>
       )}
 
@@ -1204,6 +1171,7 @@ export default function ExchangeDetails() {
               </label>
               <textarea
                 rows={3}
+                required
                 value={rejectModal.reason}
                 onChange={(e) => setRejectModal((r) => ({ ...r, reason: e.target.value }))}
                 className="w-full p-3 text-xs border border-[#EBE2D8] rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500 bg-[#F9F6F0]"
@@ -1220,9 +1188,10 @@ export default function ExchangeDetails() {
               </button>
               <button
                 onClick={handleConfirmRejectDeposit}
+                disabled={processingDepositRole !== null || rejectModal.reason.trim().length < 3}
                 className="flex-1 py-2 text-xs font-semibold rounded-lg bg-rose-700 text-white hover:bg-rose-800 transition-colors shadow-xs"
               >
-                Confirm Rejection
+                {processingDepositRole === rejectModal.partyRole ? 'Rejecting...' : 'Confirm Rejection'}
               </button>
             </div>
           </div>

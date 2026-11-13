@@ -70,6 +70,16 @@ class User extends Authenticatable
         return $this->hasMany(Item::class, 'user_id');
     }
 
+    public function requesterExchanges(): HasMany
+    {
+        return $this->hasMany(ExchangeRequest::class, 'requester_id');
+    }
+
+    public function ownerExchanges(): HasMany
+    {
+        return $this->hasMany(ExchangeRequest::class, 'owner_id');
+    }
+
     public function reviewsGiven(): HasMany
     {
         return $this->hasMany(Review::class, 'reviewer_id');

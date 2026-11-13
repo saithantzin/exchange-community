@@ -21,6 +21,7 @@ class ExchangePayment extends Model
         'payment_status',
         'rejection_reason',
         'verified_at',
+        'verified_by',
     ];
 
     protected $casts = [
@@ -41,5 +42,10 @@ class ExchangePayment extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

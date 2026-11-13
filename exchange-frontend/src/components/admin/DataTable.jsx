@@ -5,8 +5,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ArrowUpDown,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
 
 /**
@@ -21,6 +20,7 @@ export default function DataTable({
   searchable = true,
   searchPlaceholder = 'Search records...',
   pageSize = 10,
+  loadingMessage = 'Loading data...',
   emptyMessage = 'No matching records found.',
   onRowClick = null,
   actions = null
@@ -137,7 +137,7 @@ export default function DataTable({
                 <td colSpan={columns.length} className="py-12 text-center text-[#8C7A6B] text-xs">
                   <div className="flex flex-col items-center justify-center gap-2.5">
                     <div className="w-6 h-6 border-2 border-[#5C4033] border-t-transparent rounded-full animate-spin"></div>
-                    <span className="font-medium text-[#5C4033]">Loading catalog taxonomy from database...</span>
+                    <span className="font-medium text-[#5C4033]">{loadingMessage}</span>
                   </div>
                 </td>
               </tr>

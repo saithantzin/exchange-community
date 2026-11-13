@@ -1,31 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Users,
   Search,
-  Filter,
   Eye,
-  ShieldAlert,
-  ShieldCheck,
   UserX,
   UserCheck,
   MapPin,
-  Calendar,
   Mail,
   Phone,
   Star,
-  Package,
-  Repeat,
   AlertTriangle,
   X
 } from 'lucide-react';
 import DataTable from '../../components/admin/DataTable';
 import StatusBadge from '../../components/admin/StatusBadge';
 import ConfirmModal from '../../components/admin/ConfirmModal';
-import { ADMIN_MEMBERS } from '../../data/adminMockData';
-import { MYANMAR_REGIONS } from '../../data/myanmarLocations';
+import adminService from '../../services/adminService';
 
 export default function Members() {
-  const [members, setMembers] = useState(ADMIN_MEMBERS);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [serverError, setServerError] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [regionFilter, setRegionFilter] = useState('All');
@@ -41,21 +36,50 @@ export default function Members() {
     reason: ''
   });
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchMembers = async () => {
+      try {
+        const response = await adminService.getMembers();
+        if (!response?.success || !Array.isArray(response.data)) {
+          throw new Error(response?.message || 'Could not load members.');
+        }
+        if (isMounted) setMembers(response.data);
+      } catch (error) {
+        if (isMounted) {
+          setMembers([]);
+          setServerError(error.response?.data?.message || error.message || 'Could not load members.');
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchMembers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const availableRegions = [...new Set(members.map((member) => member.region).filter(Boolean))].sort();
+
   // Filter members list based on search, status, and region
   const filteredMembers = members.filter((m) => {
     const matchesSearch =
-      m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase()) ||
-      m.city.toLowerCase().includes(search.toLowerCase());
+      (m.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (m.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (m.city || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter === 'All' || m.status === statusFilter;
     const matchesRegion =
-      regionFilter === 'All' || m.region === regionFilter || m.city.includes(regionFilter);
+      regionFilter === 'All' || m.region === regionFilter || (m.city || '').includes(regionFilter);
 
     return matchesSearch && matchesStatus && matchesRegion;
   });
 
   const handleStatusChangeClick = (member, action) => {
+    setServerError('');
     setConfirmModal({
       isOpen: true,
       member,
@@ -64,27 +88,38 @@ export default function Members() {
     });
   };
 
-  const handleConfirmStatusChange = () => {
-    if (!confirmModal.member) return;
+  const handleConfirmStatusChange = async () => {
+    if (!confirmModal.member || isUpdatingStatus) return;
     const newStatus = confirmModal.action === 'Suspend' ? 'Suspended' : 'Active';
 
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === confirmModal.member.id
-          ? { ...m, status: newStatus, suspensionReason: confirmModal.reason || undefined }
-          : m
-      )
-    );
-
-    if (selectedMember && selectedMember.id === confirmModal.member.id) {
-      setSelectedMember((prev) => ({
-        ...prev,
+    setIsUpdatingStatus(true);
+    setServerError('');
+    try {
+      const response = await adminService.updateMemberStatus(confirmModal.member.id, {
         status: newStatus,
-        suspensionReason: confirmModal.reason || undefined
-      }));
-    }
+        suspension_reason: newStatus === 'Suspended' ? confirmModal.reason.trim() || null : null
+      });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Could not update member status.');
+      }
 
-    setConfirmModal({ isOpen: false, member: null, action: 'Suspend', reason: '' });
+      const updatedMember = {
+        ...confirmModal.member,
+        status: response.data.status,
+        suspensionReason: response.data.suspension_reason
+      };
+      setMembers((prev) => prev.map((member) => (
+        member.id === updatedMember.id ? updatedMember : member
+      )));
+      setSelectedMember((prev) => (
+        prev?.id === updatedMember.id ? updatedMember : prev
+      ));
+      setConfirmModal({ isOpen: false, member: null, action: 'Suspend', reason: '' });
+    } catch (error) {
+      setServerError(error.response?.data?.message || error.message || 'Could not update member status.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   const columns = [
@@ -197,6 +232,12 @@ export default function Members() {
         </div>
       </div>
 
+      {serverError && (
+        <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+          {serverError}
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="bg-white border border-[#EBE2D8] rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-3">
         <div className="relative flex-1">
@@ -232,7 +273,7 @@ export default function Members() {
               className="text-xs border border-[#EBE2D8] rounded-lg px-2.5 py-2 bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033] max-w-[160px]"
             >
               <option value="All">All Myanmar</option>
-              {MYANMAR_REGIONS.map((r) => (
+              {availableRegions.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
@@ -246,6 +287,8 @@ export default function Members() {
       <DataTable
         columns={columns}
         data={filteredMembers}
+        loading={loading}
+        loadingMessage="Loading members from database..."
         emptyMessage="No members match the specified filters."
         pageSize={8}
       />
@@ -291,21 +334,21 @@ export default function Members() {
                   <span className="text-[#8C7A6B] font-medium">Phone Number</span>
                   <div className="font-semibold text-[#2C1D15] flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-[#5C4033]" />
-                    {selectedMember.phone || '09798123456'}
+                    {selectedMember.phone || 'Not provided'}
                   </div>
                 </div>
                 <div className="text-xs space-y-1">
                   <span className="text-[#8C7A6B] font-medium">Location</span>
                   <div className="font-semibold text-[#2C1D15] flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-[#5C4033]" />
-                    {selectedMember.city}, {selectedMember.region}
+                    {[selectedMember.city, selectedMember.region].filter(Boolean).join(', ') || 'Not provided'}
                   </div>
                 </div>
                 <div className="text-xs space-y-1">
                   <span className="text-[#8C7A6B] font-medium">Community Trust Score</span>
                   <div className="font-semibold text-amber-800 flex items-center gap-1.5">
                     <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                    {selectedMember.rating || 4.9} / 5.0 (Verified Trader)
+                    {Number(selectedMember.rating).toFixed(1)} / 5.0
                   </div>
                 </div>
               </div>
@@ -338,7 +381,7 @@ export default function Members() {
                     {selectedMember.items.map((item) => (
                       <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-[#EBE2D8] bg-white">
                         <img
-                          src={item.image}
+                          src={item.image || 'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?w=200&q=80'}
                           alt={item.title}
                           className="w-12 h-12 rounded object-cover border border-[#EBE2D8]"
                         />
@@ -407,7 +450,21 @@ export default function Members() {
         type={confirmModal.action === 'Suspend' ? 'warning' : 'primary'}
         onConfirm={handleConfirmStatusChange}
         onCancel={() => setConfirmModal({ isOpen: false, member: null, action: 'Suspend', reason: '' })}
-      />
+      >
+        {confirmModal.action === 'Suspend' && (
+          <label className="block text-xs font-medium text-[#5C4033]">
+            Suspension reason (optional)
+            <textarea
+              value={confirmModal.reason}
+              onChange={(event) => setConfirmModal((prev) => ({ ...prev, reason: event.target.value }))}
+              maxLength={2000}
+              rows={3}
+              className="mt-1.5 w-full resize-y rounded-lg border border-[#EBE2D8] bg-[#F9F6F0] px-3 py-2 text-xs text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
+              placeholder="Add a note explaining this moderation action."
+            />
+          </label>
+        )}
+      </ConfirmModal>
     </div>
   );
 }

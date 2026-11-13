@@ -138,6 +138,7 @@ export function AuthProvider({ children }) {
       return { success: false, message: 'Please provide both username/email and password.' };
     }
 
+    const isAdminLogin = loginCredential.toLowerCase().includes('admin');
     setLoading(true);
     try {
       const response = await authService.login({ login: loginCredential, password });
@@ -155,60 +156,33 @@ export function AuthProvider({ children }) {
         return { success: true, user: formatted };
       }
     } catch (err) {
-      console.warn('Laravel API login failed, checking fallback:', err);
-      // If admin demo login with admin123
-      if (loginCredential.toLowerCase().includes('admin') && (password === 'admin123' || password === 'password123')) {
-        const adminFallback = {
-          id: 1,
-          name: 'Platform Administrator',
-          username: 'admin',
-          email: 'admin@exchange.com',
-          role: 'admin',
-          city: 'Mandalay Region',
-          cityCode: 'MDY',
-          phone: '09999999999',
-          rating: 5.0,
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
-        };
-        localStorage.setItem('admin_token', 'admin_session_token');
-        localStorage.setItem('recirculate_token', 'admin_session_token');
-        localStorage.setItem('admin_user', JSON.stringify(adminFallback));
-        localStorage.setItem('recirculate_user', JSON.stringify(adminFallback));
-        setCurrentUser(adminFallback);
-        setLoading(false);
-        return { success: true, user: adminFallback };
-      }
+      console.warn('Laravel API login failed:', err);
 
       // If backend returned a specific error (e.g. invalid credentials or account suspended)
       if (err.response?.data?.message) {
         setLoading(false);
         return { success: false, message: err.response.data.message };
       }
+
+      if (isAdminLogin) {
+        setLoading(false);
+        return {
+          success: false,
+          message: 'Admin sign-in requires a working backend connection and valid administrator credentials.'
+        };
+      }
+    }
+
+    if (isAdminLogin) {
+      setLoading(false);
+      return { success: false, message: 'Admin sign-in failed. Check the credentials and try again.' };
     }
 
     // Fallback simulation for offline testing
-    const isMockAdmin = loginCredential.toLowerCase().includes('admin');
-    let fallbackUser;
-    if (isMockAdmin) {
-      fallbackUser = {
-        id: 999,
-        name: 'System Administrator',
-        username: 'admin',
-        email: loginCredential,
-        phone: '09999999999',
-        role: 'admin',
-        city: 'Mandalay Region',
-        cityCode: 'MDY',
-        rating: 5.0,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
-      };
-      localStorage.setItem('admin_token', 'mock_admin_token');
-    } else {
-      fallbackUser = loginCredential.toLowerCase().includes('yangon') || loginCredential.toLowerCase().includes('kyaw')
-        ? DEMO_USERS.YGN
-        : DEMO_USERS.MDY;
-      localStorage.removeItem('admin_token');
-    }
+    const fallbackUser = loginCredential.toLowerCase().includes('yangon') || loginCredential.toLowerCase().includes('kyaw')
+      ? DEMO_USERS.YGN
+      : DEMO_USERS.MDY;
+    localStorage.removeItem('admin_token');
 
     setCurrentUser(fallbackUser);
     setLoading(false);

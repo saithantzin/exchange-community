@@ -50,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/exchange-requests', [ExchangeRequestController::class, 'index']);
     Route::post('/exchange-requests', [ExchangeRequestController::class, 'store']);
     Route::get('/exchange-requests/{id}', [ExchangeRequestController::class, 'show']);
+    Route::get('/exchanges/{id}', [ExchangeRequestController::class, 'show']);
     Route::post('/exchange-requests/{id}/accept', [ExchangeRequestController::class, 'accept']);
     Route::post('/exchange-requests/{id}/reject', [ExchangeRequestController::class, 'reject']);
     Route::post('/exchange-requests/{id}/cancel', [ExchangeRequestController::class, 'cancel']);
@@ -57,12 +58,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exchanges/{id}/deposit', [ExchangeRequestController::class, 'submitDeposit']);
     Route::post('/exchange-requests/{id}/complete', [ExchangeRequestController::class, 'complete']);
     Route::post('/exchanges/{id}/complete', [ExchangeRequestController::class, 'complete']);
+    Route::post('/exchange-requests/{id}/handover', [ExchangeRequestController::class, 'confirmHandover']);
+    Route::post('/exchanges/{id}/handover', [ExchangeRequestController::class, 'confirmHandover']);
+    Route::post('/exchange-requests/{id}/courier/confirm-arrangement', [ExchangeRequestController::class, 'confirmCourierArrangement']);
+    Route::post('/exchanges/{id}/courier/confirm-arrangement', [ExchangeRequestController::class, 'confirmCourierArrangement']);
+    Route::post('/exchange-requests/{id}/shipping', [ExchangeRequestController::class, 'submitShipping']);
+    Route::post('/exchanges/{id}/shipping', [ExchangeRequestController::class, 'submitShipping']);
+    Route::get('/exchanges/{id}/shipping/{partyRole}/evidence', [ExchangeRequestController::class, 'shippingEvidence']);
+    Route::post('/exchange-requests/{id}/receipt/confirm', [ExchangeRequestController::class, 'confirmReceipt']);
+    Route::post('/exchanges/{id}/receipt/confirm', [ExchangeRequestController::class, 'confirmReceipt']);
+    Route::post('/exchange-requests/{id}/deposit/request-refund', [ExchangeRequestController::class, 'requestRefund']);
+    Route::post('/exchanges/{id}/deposit/request-refund', [ExchangeRequestController::class, 'requestRefund']);
     Route::get('/exchange-history', [ExchangeRequestController::class, 'history']);
     Route::post('/exchange-requests/{id}/review', [ExchangeRequestController::class, 'submitReview']);
 });
 
-// Admin Protected Subtree (Authenticated via Sanctum or Admin Token)
-Route::middleware(EnsureAdmin::class)->prefix('admin')->group(function () {
+// Admin Protected Subtree (Authenticated via Sanctum and Admin role)
+Route::middleware(['auth:sanctum', EnsureAdmin::class])->prefix('admin')->group(function () {
     Route::get('/verify', function () {
         return response()->json([
             'success' => true,
@@ -73,8 +85,12 @@ Route::middleware(EnsureAdmin::class)->prefix('admin')->group(function () {
 
     // Dynamic Admin Stats & Category Management
     Route::get('/dashboard-stats', [AdminController::class, 'dashboardStats']);
+    Route::get('/members', [AdminController::class, 'members']);
+    Route::patch('/members/{id}/status', [AdminController::class, 'updateMemberStatus']);
+    Route::get('/pending-deposits', [ExchangeRequestController::class, 'adminPendingDeposits']);
     Route::get('/exchanges', [ExchangeRequestController::class, 'adminIndex']);
     Route::get('/exchanges/{id}', [ExchangeRequestController::class, 'adminShow']);
+    Route::get('/exchanges/{id}/deposits/{partyRole}/evidence', [ExchangeRequestController::class, 'adminDepositEvidence']);
     Route::post('/exchanges/{id}/deposit/approve', [ExchangeRequestController::class, 'adminApproveDeposit']);
     Route::post('/exchanges/{id}/deposit/reject', [ExchangeRequestController::class, 'adminRejectDeposit']);
     Route::post('/exchanges/{id}/refund/process', [ExchangeRequestController::class, 'adminProcessRefund']);

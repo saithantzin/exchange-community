@@ -433,7 +433,6 @@ export const ADMIN_EXCHANGES = [
         status: 'Verified',
         paymentMethod: 'KBZPay',
         referenceNumber: 'KBZ-89102488',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
         verifiedAt: '2026-10-08 14:20'
       },
       partyB: {
@@ -442,7 +441,6 @@ export const ADMIN_EXCHANGES = [
         status: 'Verified',
         paymentMethod: 'WavePay',
         referenceNumber: 'WV-99214412',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
         verifiedAt: '2026-10-08 15:10'
       }
     },
@@ -533,7 +531,6 @@ export const ADMIN_EXCHANGES = [
         status: 'Payment Submitted',
         paymentMethod: 'KBZPay',
         referenceNumber: 'KBZ-99120488',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
         submittedAt: '2026-10-14 11:30'
       },
       partyB: {
@@ -542,7 +539,6 @@ export const ADMIN_EXCHANGES = [
         status: 'Verified',
         paymentMethod: 'WavePay',
         referenceNumber: 'WV-55210419',
-        slipImage: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80',
         verifiedAt: '2026-10-14 10:15'
       }
     },

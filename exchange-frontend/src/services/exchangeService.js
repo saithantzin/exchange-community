@@ -80,127 +80,118 @@ export const exchangeService = {
 
   // Submit Deposit Payment Proof (KBZPay, WavePay, etc.)
   async submitDeposit(exchangeId, payload) {
-    const res = await api.post(`/exchanges/${exchangeId}/deposit`, payload);
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/deposit`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return res.data;
   },
 
   // Complete an exchange (In-Person Handover or Courier receipt)
   async completeExchange(exchangeId, payload = {}) {
-    const cleanId = String(exchangeId).replace(/^EXC-/, '').trim();
-    const res = await api.post(`/exchange-requests/${cleanId}/complete`, payload);
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/complete`, payload);
+    return res.data;
+  },
+
+  // Confirm In-Person Handover (Two-Sided)
+  async confirmHandover(exchangeId, payload = {}) {
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/handover`, payload);
+    return res.data;
+  },
+
+  // Admin: Get all platform exchanges
+  async getAdminExchanges(params = {}) {
+    const res = await api.get('/admin/exchanges', { params });
     return res.data;
   },
 
   // Admin: Get single exchange with real deposits & workflow
   async adminGetExchange(id) {
-    const res = await api.get(`/admin/exchanges/${id}`);
+    const cleanId = String(id).replace(/^#/, '').trim();
+    const res = await api.get(`/admin/exchanges/${cleanId}`);
     return res.data;
+  },
+
+  // Admin: Get pending escrow deposit slips (Intercity Courier Delivery only)
+  async getAdminPendingDeposits(params = {}) {
+    const res = await api.get('/admin/pending-deposits', { params });
+    return res.data;
+  },
+
+  async getAdminDepositEvidence(id, partyRole) {
+    const cleanId = String(id).replace(/^#/, '').trim();
+    const res = await api.get(`/admin/exchanges/${cleanId}/deposits/${partyRole}/evidence`, {
+      responseType: 'blob'
+    });
+    return URL.createObjectURL(res.data);
   },
 
   // Admin: Approve escrow deposit
   async adminApproveDeposit(id, payload) {
-    const res = await api.post(`/admin/exchanges/${id}/deposit/approve`, payload);
+    const cleanId = String(id).replace(/^#/, '').trim();
+    const res = await api.post(`/admin/exchanges/${cleanId}/deposit/approve`, payload);
     return res.data;
   },
 
   // Admin: Reject escrow deposit
   async adminRejectDeposit(id, payload) {
-    const res = await api.post(`/admin/exchanges/${id}/deposit/reject`, payload);
+    const cleanId = String(id).replace(/^#/, '').trim();
+    const res = await api.post(`/admin/exchanges/${cleanId}/deposit/reject`, payload);
     return res.data;
   },
 
   // Admin: Process deposit refund payout
   async adminProcessRefund(id, payload) {
-    const res = await api.post(`/admin/exchanges/${id}/refund/process`, payload);
+    const cleanId = String(id).replace(/^#/, '').trim();
+    const res = await api.post(`/admin/exchanges/${cleanId}/refund/process`, payload);
     return res.data;
-  },
-
-  // Verify Deposit (Admin or automated webhook)
-  async verifyDeposit(exchangeId, partyRole = 'partyA') {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/deposit/verify`, { partyRole });
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: `${partyRole === 'partyA' ? 'Your' : 'Partner\'s'} deposit verified.`,
-        verified: true,
-        verifiedAt: new Date().toISOString()
-      };
-    }
   },
 
   // Confirm External Courier Arrangement (State 3 -> State 4)
   async confirmCourierArrangement(exchangeId) {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/courier/confirm-arrangement`);
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: 'Courier delivery arrangement confirmed by participants.',
-        arrangementConfirmed: true
-      };
-    }
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/courier/confirm-arrangement`);
+    return res.data;
   },
 
   // Submit Courier Shipping & Waybill Info
   async submitShipping(exchangeId, payload) {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/shipping`, payload);
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: 'Shipping information & waybill recorded.',
-        shipping: payload
-      };
-    }
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/shipping`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+
+  async getShippingEvidence(exchangeId, partyRole) {
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.get(`/exchanges/${cleanId}/shipping/${partyRole}/evidence`, {
+      responseType: 'blob'
+    });
+    return URL.createObjectURL(res.data);
   },
 
   // Confirm Parcel Receipt (State 5)
   async confirmReceipt(exchangeId, payload) {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/receipt/confirm`, payload);
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: 'Parcel receipt confirmed.',
-        status: payload.bothConfirmed ? 'Completed' : 'Partially Received'
-      };
-    }
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/receipt/confirm`, payload);
+    return res.data;
   },
 
   // Submit Deposit Refund Account Details (State 6)
   async requestRefund(exchangeId, payload) {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/deposit/request-refund`, payload);
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: 'Deposit refund payout request submitted.',
-        refundStatus: 'Processing Payout',
-        refundDetails: payload
-      };
-    }
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/deposit/request-refund`, payload);
+    return res.data;
   },
 
   // Process / Complete Escrow Deposit Refund (State 6 completion)
   async processRefundPayout(exchangeId, partyRole = 'partyA') {
-    try {
-      const res = await api.post(`/exchanges/${exchangeId}/deposit/refund/process`, { partyRole });
-      return res.data;
-    } catch {
-      return {
-        success: true,
-        message: 'Escrow deposit refund successfully transferred to member wallet.',
-        refundStatus: 'Completed',
-        transactionRef: `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-        refundedAt: new Date().toISOString()
-      };
-    }
+    const cleanId = String(exchangeId).replace(/^#/, '').trim();
+    const res = await api.post(`/exchanges/${cleanId}/deposit/refund/process`, { partyRole });
+    return res.data;
   },
 
   // Trigger Escrow Deposit Refund (legacy alias)

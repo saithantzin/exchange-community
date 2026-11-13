@@ -1,40 +1,79 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Repeat,
   Search,
-  Filter,
-  Eye,
   Truck,
   Users,
   CheckCircle2,
-  Clock,
-  AlertTriangle,
   ArrowRight,
-  MapPin,
-  Calendar,
   CreditCard,
   Wallet,
   ShieldCheck
 } from 'lucide-react';
 import DataTable from '../../components/admin/DataTable';
 import StatusBadge from '../../components/admin/StatusBadge';
-import { ADMIN_EXCHANGES } from '../../data/adminMockData';
+import exchangeService from '../../services/exchangeService';
 
 export default function Exchanges() {
-  const [exchanges, setExchanges] = useState(ADMIN_EXCHANGES);
+  const [exchanges, setExchanges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [methodFilter, setMethodFilter] = useState('All');
   const [escrowFilter, setEscrowFilter] = useState('All');
 
+  React.useEffect(() => {
+    let active = true;
+    const loadExchanges = async () => {
+      try {
+        const firstResponse = await exchangeService.getAdminExchanges({ per_page: 100, page: 1 });
+        const firstPage = firstResponse?.data;
+        if (!firstResponse?.success) {
+          throw new Error(firstResponse?.message || 'Could not load exchanges.');
+        }
+
+        const rows = Array.isArray(firstPage) ? [...firstPage] : [...(firstPage?.data || [])];
+        if (!Array.isArray(firstPage) && !Array.isArray(firstPage?.data)) {
+          throw new Error('The server returned an invalid exchange list.');
+        }
+
+        const lastPage = Number(firstPage?.last_page) || 1;
+        for (let page = 2; page <= lastPage; page += 1) {
+          const response = await exchangeService.getAdminExchanges({ per_page: 100, page });
+          if (!response?.success || !Array.isArray(response.data?.data)) {
+            throw new Error(response?.message || 'Could not load all exchanges.');
+          }
+          rows.push(...response.data.data);
+        }
+
+        if (active) {
+          setExchanges(rows);
+          setLoadError('');
+        }
+      } catch (error) {
+        console.warn('Could not load admin exchanges:', error?.message);
+        if (active) {
+          setLoadError(error?.response?.data?.message || error?.message || 'Could not load exchanges.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadExchanges();
+
+    return () => { active = false; };
+  }, [reloadToken]);
+
   const filteredExchanges = exchanges.filter((e) => {
     const matchesSearch =
-      e.id.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyA.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyB.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyA.itemTitle.toLowerCase().includes(search.toLowerCase()) ||
-      e.partyB.itemTitle.toLowerCase().includes(search.toLowerCase());
+      String(e.id || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(e.partyA?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(e.partyB?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(e.itemA?.title || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(e.itemB?.title || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter === 'All' || e.status === statusFilter;
     const matchesMethod =
@@ -62,6 +101,19 @@ export default function Exchanges() {
 
     return matchesSearch && matchesStatus && matchesMethod && matchesEscrow;
   });
+
+  const depositReviewCount = exchanges.reduce((count, e) => count + (
+    e.isIntercity
+      ? [e.deposits?.partyA?.status, e.deposits?.partyB?.status]
+        .filter((status) => status === 'Payment Submitted').length
+      : 0
+  ), 0);
+  const refundPayoutCount = exchanges.reduce((count, e) => count + (
+    e.isIntercity
+      ? [e.refundWorkflow?.partyA?.status, e.refundWorkflow?.partyB?.status]
+        .filter((status) => status === 'Processing Payout').length
+      : 0
+  ), 0);
 
   const columns = [
     {
@@ -95,11 +147,12 @@ export default function Exchanges() {
     },
     {
       header: 'Items Traded',
-      accessor: 'partyA.itemTitle',
+      accessor: 'itemA.title',
+      sortable: false,
       render: (e) => (
         <div className="text-xs space-y-1 max-w-xs">
-          <div className="truncate text-[#2C1D15] font-medium">• {e.partyA.itemTitle}</div>
-          <div className="truncate text-[#5C4033] font-medium">• {e.partyB.itemTitle}</div>
+          <div className="truncate text-[#2C1D15] font-medium">• {e.itemA?.title || 'Offered item'}</div>
+          <div className="truncate text-[#5C4033] font-medium">• {e.itemB?.title || 'Requested item'}</div>
         </div>
       )
     },
@@ -226,16 +279,61 @@ export default function Exchanges() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-[#2C1D15]">Exchange Transaction Monitoring</h2>
+          <h2 className="text-lg font-bold text-[#2C1D15]">Escrow Deposits & Refund Payouts</h2>
           <p className="text-xs text-[#5C4033] mt-0.5">
-            Track multi-city logistics, escrow deposits, receipt confirmations, and payout refunds.
+            Review submitted deposit slips and process member refund payouts from one queue.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold px-3 py-1.5 bg-[#DDD1BF]/40 text-[#2C1D15] rounded-lg border border-[#EBE2D8]">
-            {filteredExchanges.length} Total Monitored
+            {filteredExchanges.length} Exchanges
           </span>
+          {loadError && (
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setReloadToken((token) => token + 1);
+              }}
+              className="text-xs font-semibold px-3 py-1.5 bg-white text-[#5C4033] rounded-lg border border-[#EBE2D8] hover:bg-[#F9F6F0]"
+            >
+              Retry
+            </button>
+          )}
         </div>
+      </div>
+
+      {loadError && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+          Could not load the live escrow queue: {loadError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={() => setEscrowFilter('DepositPending')}
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left hover:bg-amber-100 transition-colors"
+        >
+          <span className="block text-xs font-semibold text-amber-900">Deposit approvals</span>
+          <span className="mt-1 block text-2xl font-bold text-amber-800">{depositReviewCount}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setEscrowFilter('RefundReady')}
+          className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-left hover:bg-purple-100 transition-colors"
+        >
+          <span className="block text-xs font-semibold text-purple-900">Refund payouts</span>
+          <span className="mt-1 block text-2xl font-bold text-purple-800">{refundPayoutCount}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setEscrowFilter('All')}
+          className="rounded-xl border border-[#EBE2D8] bg-white p-4 text-left hover:bg-[#F9F6F0] transition-colors"
+        >
+          <span className="block text-xs font-semibold text-[#5C4033]">All escrow exchanges</span>
+          <span className="mt-1 block text-2xl font-bold text-[#2C1D15]">{exchanges.length}</span>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -261,11 +359,19 @@ export default function Exchanges() {
                 className="text-xs border border-[#EBE2D8] rounded-lg px-2.5 py-2 bg-[#F9F6F0] text-[#2C1D15] focus:outline-none focus:ring-1 focus:ring-[#5C4033]"
               >
                 <option value="All">All Statuses</option>
-                <option value="Deposit Review">Deposit Review</option>
+                <option value="Pending">Pending</option>
                 <option value="Accepted">Accepted</option>
+                <option value="Deposit Payment">Deposit Payment</option>
+                <option value="Deposit Review">Deposit Review</option>
+                <option value="Deposits Verified">Deposits Verified</option>
+                <option value="Arrangement Confirmed">Arrangement Confirmed</option>
                 <option value="Shipping">Shipping</option>
+                <option value="In Transit">In Transit</option>
+                <option value="Partially Received">Partially Received</option>
                 <option value="Completed">Completed</option>
                 <option value="Disputed">Disputed</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
             </div>
 
@@ -303,7 +409,10 @@ export default function Exchanges() {
       <DataTable
         columns={columns}
         data={filteredExchanges}
-        emptyMessage="No exchange transactions match the selected filters."
+        searchable={false}
+        loading={loading}
+        loadingMessage="Loading live escrow and refund requests..."
+        emptyMessage={loadError || 'No exchange transactions match the selected filters.'}
         pageSize={8}
       />
     </div>

@@ -41,11 +41,12 @@ export default function ExchangeDetailsPage() {
     confirmReceipt,
     updateCourierDispatch,
     fileDispute,
-    submitDeposit,
-    verifyDeposit,
     confirmCourierArrangement,
-    submitRefundRequest,
-    completeRefundPayout
+    completeRefundPayout,
+    refreshExchanges,
+    refreshRequests,
+    refreshItems,
+    refreshMyItems
   } = useExchange();
 
   const cleanId = String(id || '').replace(/^#/, '').trim();
@@ -93,22 +94,58 @@ export default function ExchangeDetailsPage() {
   // Real Exchange Data Transformer
   const rawExchange = apiExchange || matchingReq || foundExchange;
 
+  const isRequester = Boolean(
+    currentUser?.id &&
+    rawExchange &&
+    String(rawExchange.requester?.id || rawExchange.requester_id || rawExchange.partyA?.id) === String(currentUser.id)
+  );
   const isOwner = Boolean(
     currentUser?.id &&
     rawExchange &&
-    (String(rawExchange.recipient?.id || rawExchange.owner_id || rawExchange.owner?.id) === String(currentUser.id))
+    String(rawExchange.recipient?.id || rawExchange.owner_id || rawExchange.owner?.id || rawExchange.partyB?.id) === String(currentUser.id)
   );
 
   const exchange = React.useMemo(() => {
     if (!rawExchange) return null;
 
-    const myItem = isOwner ? (rawExchange.requestedItem || rawExchange.itemA) : (rawExchange.offeredItem || rawExchange.itemA);
-    const partnerItem = isOwner ? (rawExchange.offeredItem || rawExchange.itemB) : (rawExchange.requestedItem || rawExchange.itemB);
-    const myParty = isOwner ? (rawExchange.recipient || rawExchange.partyA) : (rawExchange.requester || rawExchange.partyA);
-    const partnerParty = isOwner ? (rawExchange.requester || rawExchange.partyB) : (rawExchange.recipient || rawExchange.partyB);
+    const myItem = isOwner
+      ? (rawExchange.requestedItem || rawExchange.itemA)
+      : isRequester
+        ? (rawExchange.offeredItem || rawExchange.itemA)
+        : rawExchange.itemA;
+    const partnerItem = isOwner
+      ? (rawExchange.offeredItem || rawExchange.itemB)
+      : isRequester
+        ? (rawExchange.requestedItem || rawExchange.itemB)
+        : rawExchange.itemB;
+    const partnerParty = isOwner
+      ? (rawExchange.requester || rawExchange.partyA)
+      : isRequester
+        ? (rawExchange.recipient || rawExchange.partyB)
+        : rawExchange.partyB;
+    const myShipment = isOwner ? rawExchange.partyB : rawExchange.partyA;
+    const partnerShipment = isOwner ? rawExchange.partyA : rawExchange.partyB;
 
     const handoverMethod = rawExchange.handoverMethod || rawExchange.exchange_type || 'In-Person Meetup';
     const isCompleted = rawExchange.status === 'Completed' || Boolean(rawExchange.isCompleted);
+    const hasMyHandoverConfirmed = Boolean(rawExchange.hasMyHandoverConfirmed || isCompleted);
+    const hasPartnerHandoverConfirmed = Boolean(rawExchange.hasPartnerHandoverConfirmed || isCompleted);
+    const hasMyReceiptConfirmed = Boolean(rawExchange.hasMyReceiptConfirmed || isCompleted);
+    const hasPartnerReceiptConfirmed = Boolean(rawExchange.hasPartnerReceiptConfirmed || isCompleted);
+    const deposits = rawExchange.deposits || {
+      partyA: {
+        itemTitle: myItem?.title || 'Your Provided Item',
+        category: myItem?.category?.name || myItem?.category || 'General',
+        amount: 50000,
+        status: 'Pending Payment'
+      },
+      partyB: {
+        itemTitle: partnerItem?.title || 'Partner Item',
+        category: partnerItem?.category?.name || partnerItem?.category || 'General',
+        amount: 50000,
+        status: 'Pending Payment'
+      }
+    };
 
     return {
       id: rawExchange.exchange_code || rawExchange.code || (rawExchange.id ? ('EXC-' + rawExchange.id) : cleanId),
@@ -116,6 +153,11 @@ export default function ExchangeDetailsPage() {
       exchangeCode: rawExchange.exchange_code || rawExchange.code || (rawExchange.id ? ('EXC-' + rawExchange.id) : cleanId),
       status: rawExchange.status || (isCompleted ? 'Completed' : 'Accepted'),
       isCompleted: isCompleted,
+      hasMyHandoverConfirmed: hasMyHandoverConfirmed,
+      hasPartnerHandoverConfirmed: hasPartnerHandoverConfirmed,
+      hasMyReceiptConfirmed: hasMyReceiptConfirmed,
+      hasPartnerReceiptConfirmed: hasPartnerReceiptConfirmed,
+      bothConfirmed: Boolean(rawExchange.bothConfirmed || (hasMyHandoverConfirmed && hasPartnerHandoverConfirmed) || isCompleted),
       isIntercity: Boolean(rawExchange.isIntercity),
       intercityStage: isCompleted ? 6 : (rawExchange.intercityStage || 2),
       handoverMethod: handoverMethod,
@@ -150,10 +192,13 @@ export default function ExchangeDetailsPage() {
         telegram: currentUser?.telegram || '',
         viber: currentUser?.viber || currentUser?.phone || '',
         facebook: currentUser?.facebook || '',
-        courier: rawExchange.partyA?.courier || 'Royal Express',
-        trackingNumber: rawExchange.partyA?.trackingNumber || '',
-        dispatched: Boolean(rawExchange.partyA?.dispatched || isCompleted),
-        confirmedReceipt: isCompleted
+        courier: myShipment?.courier || 'Royal Express',
+        trackingNumber: myShipment?.trackingNumber || '',
+        shippingDate: myShipment?.shippingDate || null,
+        receiptImage: myShipment?.receiptImage || null,
+        hasReceiptImage: Boolean(myShipment?.hasReceiptImage || myShipment?.receiptImage),
+        dispatched: Boolean(myShipment?.dispatched || isCompleted),
+        confirmedReceipt: Boolean(myShipment?.confirmedReceipt || hasMyReceiptConfirmed || hasMyHandoverConfirmed || isCompleted)
       },
       partyB: {
         id: partnerParty?.id,
@@ -165,25 +210,15 @@ export default function ExchangeDetailsPage() {
         facebook: partnerParty?.facebook || partnerParty?.communicationContacts?.facebook || '',
         avatar: partnerParty?.avatar || partnerParty?.profile_image || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&q=80',
         rating: partnerParty?.rating || 5.0,
-        courier: rawExchange.partyB?.courier || 'Elite Cargo Express',
-        trackingNumber: rawExchange.partyB?.trackingNumber || '',
-        dispatched: Boolean(rawExchange.partyB?.dispatched || isCompleted),
-        confirmedReceipt: isCompleted
+        courier: partnerShipment?.courier || 'Elite Cargo Express',
+        trackingNumber: partnerShipment?.trackingNumber || '',
+        shippingDate: partnerShipment?.shippingDate || null,
+        receiptImage: partnerShipment?.receiptImage || null,
+        hasReceiptImage: Boolean(partnerShipment?.hasReceiptImage || partnerShipment?.receiptImage),
+        dispatched: Boolean(partnerShipment?.dispatched || isCompleted),
+        confirmedReceipt: Boolean(partnerShipment?.confirmedReceipt || hasPartnerReceiptConfirmed || hasPartnerHandoverConfirmed || isCompleted)
       },
-      deposits: rawExchange.deposits || {
-        partyA: {
-          itemTitle: myItem?.title || 'Your Provided Item',
-          category: myItem?.category?.name || myItem?.category || 'General',
-          amount: 50000,
-          status: isCompleted ? 'Verified' : 'Unpaid'
-        },
-        partyB: {
-          itemTitle: partnerItem?.title || 'Partner Item',
-          category: partnerItem?.category?.name || partnerItem?.category || 'General',
-          amount: 50000,
-          status: isCompleted ? 'Verified' : 'Unpaid'
-        }
-      },
+      deposits,
       courierArrangement: rawExchange.courierArrangement || {
         confirmed: isCompleted,
         confirmedAt: null
@@ -193,7 +228,7 @@ export default function ExchangeDetailsPage() {
         status: isCompleted ? 'Refund Processed' : 'Locked'
       }
     };
-  }, [rawExchange, isOwner, cleanId, currentUser]);
+  }, [rawExchange, isOwner, isRequester, cleanId, currentUser]);
 
   const handoverMethodRaw = String(
     exchange?.handoverMethod ||
@@ -222,7 +257,7 @@ export default function ExchangeDetailsPage() {
     itemTitle: exchange?.itemA?.title || 'Your Item',
     category: exchange?.itemA?.category || 'General',
     amount: 50000,
-    status: exchange?.status === 'Completed' ? 'Verified' : 'Unpaid',
+    status: 'Pending Payment',
     paymentMethod: null,
     referenceNumber: '',
     slipImage: null,
@@ -234,7 +269,7 @@ export default function ExchangeDetailsPage() {
     itemTitle: exchange?.itemB?.title || 'Partner Item',
     category: exchange?.itemB?.category || 'General',
     amount: 50000,
-    status: exchange?.status === 'Completed' ? 'Verified' : 'Unpaid',
+    status: 'Pending Payment',
     paymentMethod: null,
     referenceNumber: '',
     slipImage: null,
@@ -289,7 +324,10 @@ export default function ExchangeDetailsPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('KBZPay');
   const [paymentRefNumber, setPaymentRefNumber] = useState('');
   const [paymentSlipImage, setPaymentSlipImage] = useState('');
+  const [paymentSlipFile, setPaymentSlipFile] = useState(null);
+  const paymentSlipInputRef = React.useRef(null);
   const [submittingDeposit, setSubmittingDeposit] = useState(false);
+  const [submittingHandover, setSubmittingHandover] = useState(false);
 
   // Courier Dispatch Modal State (State 4)
   const [showDispatchModal, setShowDispatchModal] = useState(false);
@@ -297,6 +335,11 @@ export default function ExchangeDetailsPage() {
   const [trackingNumber, setTrackingNumber] = useState(exchange?.partyA?.trackingNumber || '');
   const [shippingDate, setShippingDate] = useState(new Date().toISOString().split('T')[0]);
   const [receiptImage, setReceiptImage] = useState(exchange?.partyA?.receiptImage || '');
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [shippingEvidenceImages, setShippingEvidenceImages] = useState({ exchangeId: null, partyA: null, partyB: null });
+  const [shippingEvidenceRefresh, setShippingEvidenceRefresh] = useState(0);
+  const receiptInputRef = React.useRef(null);
+  const receiptPreviewUrlRef = React.useRef(null);
 
   // State 6: Refund Request Payout Form State
   const [refundWalletType, setRefundWalletType] = useState('KBZPay');
@@ -313,6 +356,68 @@ export default function ExchangeDetailsPage() {
   // Image Lightbox Preview
   const [previewImageModal, setPreviewImageModal] = useState(null);
 
+  React.useEffect(() => {
+    let active = true;
+    const objectUrls = [];
+
+    const loadEvidence = async (viewRole, exchangeRole, party) => {
+      if (party?.receiptImage) {
+        return [viewRole, party.receiptImage];
+      }
+      if (!party?.hasReceiptImage || !exchange?.numericId) {
+        return [viewRole, null];
+      }
+
+      try {
+        const imageUrl = await exchangeService.getShippingEvidence(exchange.numericId, exchangeRole);
+        if (!active) {
+          URL.revokeObjectURL(imageUrl);
+          return [viewRole, null];
+        }
+        objectUrls.push(imageUrl);
+        return [viewRole, imageUrl];
+      } catch (error) {
+        console.warn(`Could not load ${viewRole} courier evidence:`, error?.message);
+        return [viewRole, null];
+      }
+    };
+
+    Promise.all([
+      loadEvidence('partyA', isOwner ? 'partyB' : 'partyA', exchange?.partyA),
+      loadEvidence('partyB', isOwner ? 'partyA' : 'partyB', exchange?.partyB)
+    ]).then((entries) => {
+      if (active) {
+        setShippingEvidenceImages({
+          exchangeId: exchange?.numericId,
+          ...Object.fromEntries(entries)
+        });
+      }
+    });
+
+    return () => {
+      active = false;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [
+    exchange?.numericId,
+    exchange?.partyA,
+    exchange?.partyB,
+    isOwner,
+    shippingEvidenceRefresh
+  ]);
+
+  const currentEvidenceImages = shippingEvidenceImages.exchangeId === exchange?.numericId
+    ? shippingEvidenceImages
+    : {};
+  const myReceiptImage = exchange?.partyA?.receiptImage || currentEvidenceImages.partyA || null;
+  const partnerReceiptImage = exchange?.partyB?.receiptImage || currentEvidenceImages.partyB || null;
+
+  React.useEffect(() => () => {
+    if (receiptPreviewUrlRef.current) {
+      URL.revokeObjectURL(receiptPreviewUrlRef.current);
+    }
+  }, []);
+
   // Copy to clipboard helper
   const handleCopy = (text, fieldName) => {
     if (!text) return;
@@ -328,67 +433,114 @@ export default function ExchangeDetailsPage() {
       alert('Please enter your transaction reference number or last 6 digits.');
       return;
     }
+    if (!paymentSlipFile) {
+      alert('Please upload your genuine payment slip before submitting.');
+      return;
+    }
     setSubmittingDeposit(true);
 
     try {
-      await exchangeService.submitDeposit(exchange.id, {
-        paymentMethod: selectedPaymentMethod,
-        referenceNumber: paymentRefNumber,
-        slipImage: paymentSlipImage || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80'
-      });
+      const payload = new FormData();
+      payload.append('paymentMethod', selectedPaymentMethod);
+      payload.append('referenceNumber', paymentRefNumber.trim());
+      payload.append('slipImage', paymentSlipFile);
+      const res = await exchangeService.submitDeposit(exchange.id, payload);
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'Failed to submit deposit payment.');
+      }
 
-      submitDeposit(exchange.id, 'partyA', {
-        paymentMethod: selectedPaymentMethod,
-        referenceNumber: paymentRefNumber,
-        slipImage: paymentSlipImage || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80'
-      });
-
+      setApiExchange(res.data);
+      await refreshExchanges();
+      setPaymentSlipFile(null);
+      setPaymentSlipImage('');
+      setPaymentRefNumber('');
+      if (paymentSlipInputRef.current) paymentSlipInputRef.current.value = '';
       setShowPayDepositModal(false);
       setToastMessage({
         title: 'Deposit Payment Submitted!',
         text: 'Your escrow payment proof has been submitted for platform verification.'
       });
       setTimeout(() => setToastMessage(null), 5000);
-    } catch {
-      alert('Failed to submit deposit. Please try again.');
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to submit deposit. Please try again.');
     } finally {
       setSubmittingDeposit(false);
     }
   };
 
-  // Simulate Verifying Deposits for testing
-  const handleSimulateVerifyMyDeposit = async () => {
-    await exchangeService.verifyDeposit(exchange.id, 'partyA');
-    verifyDeposit(exchange.id, 'partyA');
-    setToastMessage({
-      title: 'Your Deposit Verified!',
-      text: 'Platform administrator verified your escrow payment.'
-    });
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+  // Confirm Handover (In-Person Meetup State 2)
+  const handleConfirmHandover = async () => {
+    if (submittingHandover) return;
+    setSubmittingHandover(true);
+    try {
+      const res = await exchangeService.confirmHandover(exchange.id, 'Handover completed in person.');
+      if (res?.success && res.data) {
+        setApiExchange(res.data);
+      } else {
+        setApiExchange(prev => prev ? {
+          ...prev,
+          hasMyHandoverConfirmed: true,
+          status: prev.hasPartnerHandoverConfirmed ? 'Completed' : prev.status,
+          isCompleted: Boolean(prev.hasPartnerHandoverConfirmed)
+        } : prev);
+      }
+      completeExchange(exchange.id, 'Handover completed in person.');
+      if (refreshExchanges) refreshExchanges();
+      if (refreshRequests) refreshRequests();
+      if (refreshItems) refreshItems();
+      if (refreshMyItems) refreshMyItems();
 
-  const handleSimulateVerifyOtherDeposit = async () => {
-    await exchangeService.verifyDeposit(exchange.id, 'partyB');
-    verifyDeposit(exchange.id, 'partyB');
-    setToastMessage({
-      title: "Partner's Deposit Verified!",
-      text: "Both deposits verified! Communication contact information is now unlocked."
-    });
-    setTimeout(() => setToastMessage(null), 4000);
+      const isDone = res?.data?.isCompleted || exchange?.hasPartnerHandoverConfirmed;
+      setToastMessage({
+        title: isDone ? 'Exchange Completed Successfully!' : 'Handover Confirmed!',
+        text: isDone
+          ? 'Both members confirmed handover. Both items have been marked as Not Available.'
+          : 'Your handover confirmation is saved! Awaiting partner confirmation to complete the exchange.'
+      });
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to confirm handover. Please try again.');
+    } finally {
+      setSubmittingHandover(false);
+    }
   };
 
   // Confirm Courier Arrangement (State 3 -> State 4)
   const handleConfirmArrangement = async () => {
-    await exchangeService.confirmCourierArrangement(exchange.id);
-    confirmCourierArrangement(exchange.id);
-    setToastMessage({
-      title: 'Courier Arrangement Confirmed!',
-      text: 'You can now drop off your parcel at the courier branch and upload waybill tracking.'
-    });
-    setTimeout(() => setToastMessage(null), 5000);
+    try {
+      const res = await exchangeService.confirmCourierArrangement(exchange.id);
+      if (res?.success && res.data) {
+        setApiExchange(res.data);
+      }
+      confirmCourierArrangement(exchange.id);
+      if (refreshExchanges) refreshExchanges();
+      setToastMessage({
+        title: 'Courier Arrangement Confirmed!',
+        text: 'You can now drop off your parcel at the courier branch and upload waybill tracking.'
+      });
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to confirm arrangement.');
+    }
   };
 
   // Submit Courier Shipping Dispatch (State 4)
+  const handleOpenDispatchModal = () => {
+    setCourierName(exchange?.partyA?.courier || 'Royal Express');
+    setTrackingNumber(exchange?.partyA?.trackingNumber || '');
+    setShippingDate(exchange?.partyA?.shippingDate || new Date().toISOString().split('T')[0]);
+    setReceiptFile(null);
+    if (receiptPreviewUrlRef.current) {
+      URL.revokeObjectURL(receiptPreviewUrlRef.current);
+      receiptPreviewUrlRef.current = null;
+    }
+    setReceiptImage(myReceiptImage || '');
+    if (receiptInputRef.current) {
+      receiptInputRef.current.value = '';
+    }
+    setShowDispatchModal(true);
+  };
+
   const handleSaveDispatch = async (e) => {
     e.preventDefault();
     if (!trackingNumber.trim()) {
@@ -396,21 +548,40 @@ export default function ExchangeDetailsPage() {
       return;
     }
 
-    const payload = {
-      courier: courierName,
-      trackingNumber,
-      shippingDate,
-      receiptImage: receiptImage || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500&q=80'
-    };
+    const payload = new FormData();
+    payload.append('courier', courierName);
+    payload.append('trackingNumber', trackingNumber.trim());
+    payload.append('shippingDate', shippingDate);
+    if (receiptFile) {
+      payload.append('shippingProof', receiptFile);
+    }
 
-    await exchangeService.submitShipping(exchange.id, payload);
-    updateCourierDispatch(exchange.id, 'partyA', payload);
-    setShowDispatchModal(false);
-    setToastMessage({
-      title: 'Waybill & Parcel Dispatched!',
-      text: `Your parcel has been marked dispatched with ${courierName}.`
-    });
-    setTimeout(() => setToastMessage(null), 5000);
+    try {
+      const res = await exchangeService.submitShipping(exchange.id, payload);
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'Failed to submit courier dispatch.');
+      }
+      setApiExchange(res.data);
+      setShippingEvidenceRefresh((current) => current + 1);
+      setReceiptFile(null);
+      setReceiptImage('');
+      if (receiptPreviewUrlRef.current) {
+        URL.revokeObjectURL(receiptPreviewUrlRef.current);
+        receiptPreviewUrlRef.current = null;
+      }
+      if (receiptInputRef.current) {
+        receiptInputRef.current.value = '';
+      }
+      if (refreshExchanges) refreshExchanges();
+      setShowDispatchModal(false);
+      setToastMessage({
+        title: 'Waybill & Parcel Dispatched!',
+        text: `Your parcel has been marked dispatched with ${courierName}.`
+      });
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to submit courier dispatch.');
+    }
   };
 
   // Simulate Partner Dispatching Parcel
@@ -430,14 +601,28 @@ export default function ExchangeDetailsPage() {
 
   // Confirm Receipt (State 5)
   const handleConfirmIntercityReceipt = async () => {
-    confirmReceipt(exchange.id, 'partyA', 'Verified item condition from parcel.');
-    setToastMessage({
-      title: 'Parcel Receipt Confirmed!',
-      text: exchange.partyB?.confirmedReceipt
-        ? 'Both members confirmed receipt! Please proceed to State 6 to enter your payout number for the deposit refund.'
-        : 'You confirmed receipt. Awaiting partner receipt confirmation to unlock State 6 refund.'
-    });
-    setTimeout(() => setToastMessage(null), 5000);
+    try {
+      const res = await exchangeService.confirmReceipt(exchange.id, 'Verified item condition from parcel.');
+      if (res?.success && res.data) {
+        setApiExchange(res.data);
+      }
+      confirmReceipt(exchange.id, 'partyA', 'Verified item condition from parcel.');
+      if (refreshExchanges) refreshExchanges();
+      if (refreshRequests) refreshRequests();
+      if (refreshItems) refreshItems();
+      if (refreshMyItems) refreshMyItems();
+
+      const bothDone = res?.data?.bothConfirmed || res?.data?.isCompleted || exchange.partyB?.confirmedReceipt || exchange.hasPartnerReceiptConfirmed;
+      setToastMessage({
+        title: 'Parcel Receipt Confirmed!',
+        text: bothDone
+          ? 'Both members confirmed receipt! Please proceed to State 6 to enter your payout number for the deposit refund.'
+          : 'You confirmed receipt. Awaiting partner receipt confirmation to unlock State 6 refund.'
+      });
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to confirm parcel receipt.');
+    }
   };
 
   const handleSimulatePartnerReceipt = async () => {
@@ -463,26 +648,25 @@ export default function ExchangeDetailsPage() {
 
     setSubmittingRefund(true);
     try {
-      await exchangeService.requestRefund(exchange.id, {
-        walletType: refundWalletType,
-        accountNumber: refundAccountNumber,
-        accountName: refundAccountName,
-        partyRole: 'partyA'
-      });
-
-      submitRefundRequest(exchange.id, 'partyA', {
+      const res = await exchangeService.requestRefund(exchange.numericId || exchange.id, {
         walletType: refundWalletType,
         accountNumber: refundAccountNumber,
         accountName: refundAccountName
       });
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || 'Failed to submit refund payout request.');
+      }
+
+      setApiExchange(res.data);
+      if (refreshExchanges) await refreshExchanges();
 
       setToastMessage({
         title: 'Deposit Refund Requested!',
         text: `Your payout request of ${(myDeposit.amount || 100000).toLocaleString()} MMK to ${refundWalletType} (${refundAccountNumber}) has been submitted for transfer.`
       });
       setTimeout(() => setToastMessage(null), 5000);
-    } catch {
-      alert('Failed to submit refund payout request.');
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to submit refund payout request.');
     } finally {
       setSubmittingRefund(false);
     }
@@ -661,7 +845,13 @@ export default function ExchangeDetailsPage() {
                 In-Person Meetup Stepper
               </h2>
               <span className="text-[11px] font-semibold text-[#5C4033] bg-[#F9F6F0] px-2.5 py-0.5 rounded-full border border-[#DDD1BF]">
-                {exchange.isCompleted || exchange.status === 'Completed' ? 'State 2 of 2 (Handover Done)' : 'State 1 of 2 (Accept)'}
+                {exchange.isCompleted || exchange.status === 'Completed'
+                  ? 'State 2 of 2 (Handover Done - Completed)'
+                  : exchange.hasMyHandoverConfirmed
+                  ? 'State 2 of 2 (Waiting Partner Confirmation)'
+                  : exchange.hasPartnerHandoverConfirmed
+                  ? 'State 2 of 2 (Partner Confirmed - Your Turn)'
+                  : 'State 1 of 2 (Accept)'}
               </span>
             </div>
 
@@ -679,18 +869,28 @@ export default function ExchangeDetailsPage() {
               <div className={`p-3.5 sm:p-4 rounded-xl border transition-all ${
                 exchange.isCompleted || exchange.status === 'Completed'
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900 ring-2 ring-emerald-300'
+                  : exchange.hasMyHandoverConfirmed
+                  ? 'bg-blue-50 border-blue-200 text-blue-900 ring-2 ring-blue-300'
                   : 'bg-amber-50 border-amber-300 text-amber-900 ring-2 ring-amber-300'
               }`}>
                 <div className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center mx-auto mb-1.5 shadow-xs ${
                   exchange.isCompleted || exchange.status === 'Completed'
                     ? 'bg-emerald-600 text-white'
+                    : exchange.hasMyHandoverConfirmed
+                    ? 'bg-blue-600 text-white'
                     : 'bg-amber-500 text-white'
                 }`}>
-                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : '2'}
+                  {exchange.isCompleted || exchange.status === 'Completed' ? '✓' : exchange.hasMyHandoverConfirmed ? '✓' : '2'}
                 </div>
                 <div className="text-xs sm:text-sm font-bold leading-tight">2. Handover Done</div>
                 <div className="text-[11px] mt-0.5 font-medium">
-                  {exchange.isCompleted || exchange.status === 'Completed' ? 'Completed & Unavailable' : 'Pending In-Person Handover'}
+                  {exchange.isCompleted || exchange.status === 'Completed'
+                    ? 'Completed & Unavailable'
+                    : exchange.hasMyHandoverConfirmed
+                    ? 'You Confirmed (Waiting Partner)'
+                    : exchange.hasPartnerHandoverConfirmed
+                    ? 'Partner Confirmed (Your Turn)'
+                    : 'Pending In-Person Handover'}
                 </div>
               </div>
             </div>
@@ -875,6 +1075,8 @@ export default function ExchangeDetailsPage() {
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : myDeposit.status === 'Payment Submitted'
                         ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : myDeposit.status === 'Rejected'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300'
                         : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}>
                       {myDeposit.status}
@@ -911,14 +1113,21 @@ export default function ExchangeDetailsPage() {
                 </div>
 
                 <div>
-                  {myDeposit.status === 'Unpaid' || myDeposit.status === 'Rejected' ? (
-                    <button
-                      onClick={() => setShowPayDepositModal(true)}
-                      className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <Coins className="w-4 h-4" />
-                      <span>Pay Deposit ({(myDeposit.amount || 100000).toLocaleString()} MMK)</span>
-                    </button>
+                  {['Pending Payment', 'Rejected'].includes(myDeposit.status) ? (
+                    <>
+                      {myDeposit.status === 'Rejected' && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-2">
+                          {myDeposit.rejectionReason || 'Your payment was rejected. Please upload a corrected payment slip and resubmit.'}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setShowPayDepositModal(true)}
+                        className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                      >
+                        <Coins className="w-4 h-4" />
+                        <span>{myDeposit.status === 'Rejected' ? 'Resubmit Payment' : `Pay Deposit (${(myDeposit.amount || 100000).toLocaleString()} MMK)`}</span>
+                      </button>
+                    </>
                   ) : myDeposit.status === 'Payment Submitted' ? (
                     <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center gap-2">
                       <Clock className="w-4 h-4 text-blue-600 shrink-0" />
@@ -927,7 +1136,7 @@ export default function ExchangeDetailsPage() {
                   ) : (
                     <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Your deposit is verified and securely held in escrow.</span>
+                      <span>Your payment evidence was verified by the platform administrator.</span>
                     </div>
                   )}
                 </div>
@@ -945,6 +1154,8 @@ export default function ExchangeDetailsPage() {
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : otherDeposit.status === 'Payment Submitted'
                         ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : otherDeposit.status === 'Rejected'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300'
                         : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}>
                       {otherDeposit.status}
@@ -984,7 +1195,7 @@ export default function ExchangeDetailsPage() {
                   {otherDeposit.status === 'Verified' ? (
                     <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Partner's deposit is verified and held in escrow.</span>
+                      <span>Platform administration verified the partner's payment evidence.</span>
                     </div>
                   ) : otherDeposit.status === 'Payment Submitted' ? (
                     <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center gap-2">
@@ -1321,13 +1532,13 @@ export default function ExchangeDetailsPage() {
                   )}
                 </div>
 
-                {exchange.partyA?.receiptImage && (
+                {myReceiptImage && (
                   <div className="mb-3">
                     <span className="text-[11px] text-[#8C7A6B] block mb-1">Waybill Slip Evidence:</span>
                     <img
-                      src={exchange.partyA.receiptImage}
+                      src={myReceiptImage}
                       alt="Waybill Slip"
-                      onClick={() => setPreviewImageModal(exchange.partyA.receiptImage)}
+                      onClick={() => setPreviewImageModal(myReceiptImage)}
                       className="w-24 h-16 rounded-lg object-cover border border-[#DDD1BF] cursor-pointer hover:opacity-90"
                       title="Click to enlarge"
                     />
@@ -1335,7 +1546,7 @@ export default function ExchangeDetailsPage() {
                 )}
 
                 <button
-                  onClick={() => setShowDispatchModal(true)}
+                  onClick={handleOpenDispatchModal}
                   className="w-full py-2 px-3 text-xs font-semibold rounded-lg border border-[#c8bba7] bg-white text-[#2C1D15] hover:bg-[#F9F6F0] transition-colors"
                 >
                   {exchange.partyA?.dispatched ? 'Update Courier Info or Receipt' : 'Enter Courier Tracking & Slip'}
@@ -1368,13 +1579,13 @@ export default function ExchangeDetailsPage() {
                   </div>
                 </div>
 
-                {exchange.partyB?.receiptImage && (
+                {partnerReceiptImage && (
                   <div className="mb-3">
                     <span className="text-[11px] text-[#8C7A6B] block mb-1">Partner Dispatch Slip:</span>
                     <img
-                      src={exchange.partyB.receiptImage}
+                      src={partnerReceiptImage}
                       alt="Partner Slip"
-                      onClick={() => setPreviewImageModal(exchange.partyB.receiptImage)}
+                      onClick={() => setPreviewImageModal(partnerReceiptImage)}
                       className="w-24 h-16 rounded-lg object-cover border border-[#DDD1BF] cursor-pointer hover:opacity-90"
                       title="Click to enlarge"
                     />
@@ -1791,31 +2002,8 @@ export default function ExchangeDetailsPage() {
                 </ul>
               </div>
 
-              {/* Handover Completion Action Button */}
-              {!exchange.isCompleted && exchange.status !== 'Completed' ? (
-                <div className="p-5 rounded-xl border-2 border-dashed border-[#5C4033]/30 bg-[#FAF8F5] text-center">
-                  <h4 className="font-serif font-bold text-base text-[#2C1D15] mb-1">
-                    Met in person and completed item handover?
-                  </h4>
-                  <p className="text-xs text-[#5C4033] max-w-md mx-auto mb-4 leading-relaxed">
-                    Click the button below once both you and your partner have verified items and finished the exchange. Both items will immediately update to <strong>Not Available</strong>.
-                  </p>
-                  <button
-                    onClick={() => {
-                      completeExchange(exchange.id, 'Handover completed in person.');
-                      setApiExchange(prev => prev ? { ...prev, status: 'Completed', isCompleted: true } : prev);
-                      setToastMessage({
-                        title: 'Exchange Completed Successfully!',
-                        text: 'Handover confirmed. Both items have been marked as Not Available.'
-                      });
-                    }}
-                    className="inline-flex items-center gap-2 py-3 px-8 text-xs font-bold rounded-xl bg-[#5C4033] text-white hover:bg-[#2C1D15] transition-all shadow-md active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Confirm Handover &amp; Complete Exchange</span>
-                  </button>
-                </div>
-              ) : (
+              {/* Handover Completion Action Box (Two-Sided Confirmation) */}
+              {exchange.isCompleted || exchange.status === 'Completed' ? (
                 <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
                     <CheckCircle2 className="w-5 h-5" />
@@ -1824,8 +2012,47 @@ export default function ExchangeDetailsPage() {
                     In-Person Exchange Completed
                   </h4>
                   <p className="text-xs text-emerald-700 mb-0">
-                    Handover confirmed! Both items are marked <strong>Not Available</strong> in the community catalog.
+                    Both members confirmed handover! Both items are marked <strong>Not Available</strong> in the community catalog.
                   </p>
+                </div>
+              ) : exchange.hasMyHandoverConfirmed ? (
+                <div className="p-5 rounded-xl bg-blue-50 border border-blue-200 text-center">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-serif font-bold text-base text-blue-900 mb-1">
+                    Your Handover Confirmed!
+                  </h4>
+                  <p className="text-xs text-blue-800 max-w-md mx-auto mb-0 leading-relaxed">
+                    You have confirmed the in-person handover. Waiting for <strong>{exchange.partyB?.name || 'your exchange partner'}</strong> to confirm on their side. Once both confirm, the exchange will be finalized and listings closed.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-5 rounded-xl border-2 border-dashed border-[#5C4033]/30 bg-[#FAF8F5] text-center">
+                  <h4 className="font-serif font-bold text-base text-[#2C1D15] mb-1">
+                    Met in person and completed item handover?
+                  </h4>
+                  {exchange.hasPartnerHandoverConfirmed && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold mb-2">
+                      <Clock className="w-3.5 h-3.5" />
+                      {exchange.partyB?.name || 'Partner'} has already confirmed handover! Click below to confirm.
+                    </div>
+                  )}
+                  <p className="text-xs text-[#5C4033] max-w-md mx-auto mb-4 leading-relaxed">
+                    Click the button below once you have met and verified the items. This two-sided confirmation guarantees safe verification for both members.
+                  </p>
+                  <button
+                    onClick={handleConfirmHandover}
+                    disabled={submittingHandover}
+                    className="inline-flex items-center gap-2 py-3 px-8 text-xs font-bold rounded-xl bg-[#5C4033] text-white hover:bg-[#2C1D15] disabled:opacity-50 transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    {submittingHandover ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span>{submittingHandover ? 'Saving to Database...' : 'Confirm Handover Done'}</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1896,7 +2123,7 @@ export default function ExchangeDetailsPage() {
 
             <form onSubmit={handlePayDepositSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#EBE2D8] text-xs text-[#5C4033] leading-relaxed">
-                Deposit amount is determined by your offered item's category (<strong>{myDeposit.category}</strong>). Your funds are held securely in platform escrow and refunded 100% after dual delivery confirmation.
+                Deposit amount is determined by your offered item's category (<strong>{myDeposit.category}</strong>). Upload your transfer slip for admin review; refund eligibility follows the exchange completion process.
               </div>
 
               {/* Payment Method Select */}
@@ -1951,18 +2178,27 @@ export default function ExchangeDetailsPage() {
               {/* Screenshot Upload */}
               <div>
                 <label className="block text-xs font-semibold text-[#2C1D15] mb-1">
-                  Payment Slip Screenshot <span className="text-[#8C7A6B] font-normal">(Optional)</span>
+                  Payment Slip Screenshot <span className="text-rose-600">*</span>
                 </label>
                 <input
+                  ref={paymentSlipInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
+                  required
                   onChange={(e) => {
                     const file = e.target.files[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => setPaymentSlipImage(reader.result);
-                      reader.readAsDataURL(file);
+                    if (!file) return;
+                    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+                      alert('Choose a JPG, PNG, or WebP image up to 5 MB.');
+                      e.target.value = '';
+                      setPaymentSlipFile(null);
+                      setPaymentSlipImage('');
+                      return;
                     }
+                    setPaymentSlipFile(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => setPaymentSlipImage(reader.result);
+                    reader.readAsDataURL(file);
                   }}
                   className="w-full text-xs text-[#5C4033] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#DDD1BF]/60 file:text-[#2C1D15] hover:file:bg-[#DDD1BF]"
                 />
@@ -1972,21 +2208,17 @@ export default function ExchangeDetailsPage() {
                     <img src={paymentSlipImage} alt="Payment Slip" className="h-20 rounded border border-[#DDD1BF] object-contain" />
                     <button
                       type="button"
-                      onClick={() => setPaymentSlipImage('')}
+                      onClick={() => {
+                        setPaymentSlipFile(null);
+                        setPaymentSlipImage('');
+                        if (paymentSlipInputRef.current) paymentSlipInputRef.current.value = '';
+                      }}
                       className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-0.5 text-xs"
                     >
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentSlipImage('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&q=80')}
-                    className="text-[11px] text-[#5C4033] hover:underline mt-1 block"
-                  >
-                    + Insert sample deposit receipt for testing
-                  </button>
-                )}
+                ) : null}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EBE2D8] shrink-0">
@@ -2081,14 +2313,22 @@ export default function ExchangeDetailsPage() {
                 </label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
+                  ref={receiptInputRef}
                   onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => setReceiptImage(reader.result);
-                      reader.readAsDataURL(file);
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+                      alert('Choose a JPG, PNG, or WebP image smaller than 5 MB.');
+                      e.target.value = '';
+                      return;
                     }
+                    if (receiptPreviewUrlRef.current) {
+                      URL.revokeObjectURL(receiptPreviewUrlRef.current);
+                    }
+                    receiptPreviewUrlRef.current = URL.createObjectURL(file);
+                    setReceiptFile(file);
+                    setReceiptImage(receiptPreviewUrlRef.current);
                   }}
                   className="w-full text-xs text-[#5C4033] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#DDD1BF]/60 file:text-[#2C1D15] hover:file:bg-[#DDD1BF]"
                 />
@@ -2096,22 +2336,30 @@ export default function ExchangeDetailsPage() {
                 {receiptImage ? (
                   <div className="mt-2 relative inline-block">
                     <img src={receiptImage} alt="Receipt Slip" className="h-20 rounded border border-[#DDD1BF] object-contain" />
-                    <button
-                      type="button"
-                      onClick={() => setReceiptImage('')}
-                      className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-0.5 text-xs"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {receiptFile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReceiptFile(null);
+                          setReceiptImage(myReceiptImage || '');
+                          if (receiptPreviewUrlRef.current) {
+                            URL.revokeObjectURL(receiptPreviewUrlRef.current);
+                            receiptPreviewUrlRef.current = null;
+                          }
+                          if (receiptInputRef.current) {
+                            receiptInputRef.current.value = '';
+                          }
+                        }}
+                        className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-0.5 text-xs"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setReceiptImage('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500&q=80')}
-                    className="text-[11px] text-[#5C4033] hover:underline mt-1 block"
-                  >
-                    + Insert sample waybill receipt photo
-                  </button>
+                  <p className="text-[11px] text-[#8C7A6B] mt-1">
+                    JPG, PNG, or WebP; maximum file size 5 MB.
+                  </p>
                 )}
               </div>
 
