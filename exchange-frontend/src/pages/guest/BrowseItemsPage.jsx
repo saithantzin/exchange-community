@@ -41,9 +41,10 @@ function formatItemFromBackend(bItem) {
     owner: {
       id: bItem.user?.id || bItem.user_id,
       name: bItem.user?.name || 'Community Member',
-      rating: Number(bItem.user?.rating) || 5.0,
+      rating: (bItem.user?.rating !== undefined && bItem.user?.rating !== null && !isNaN(Number(bItem.user?.rating))) ? Number(bItem.user?.rating) : 0,
       avatar: bItem.user?.profile_image || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80'
     },
+    status: bItem.availability_status || 'Available',
     views: bItem.views || 0,
     createdAt: bItem.created_at ? new Date(bItem.created_at).toLocaleDateString() : 'Recently'
   };
@@ -447,7 +448,7 @@ export default function BrowseItemsPage() {
                           }}
                         />
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner?.rating || 5.0}★</span>
+                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{Number(item.owner?.rating || 0) > 0 ? `${Number(item.owner?.rating).toFixed(1)}★` : '0★'}</span>
                         </span>
                       </div>
 

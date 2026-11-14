@@ -254,7 +254,7 @@ export default function LatestItemsGrid({
                           }}
                         />
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{item.owner?.rating || 5.0}★</span>
+                          {(item.owner?.name || 'Member').split(' ')[0]} &nbsp;•&nbsp; <span className="text-dark fw-semibold">{Number(item.owner?.rating || 0) > 0 ? `${Number(item.owner?.rating).toFixed(1)}★` : '0★'}</span>
                         </span>
                       </div>
 

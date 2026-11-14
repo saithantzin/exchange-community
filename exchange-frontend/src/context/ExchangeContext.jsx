@@ -72,7 +72,8 @@ function formatItemFromBackend(bItem) {
       name: bItem.user?.name || 'Member',
       username: bItem.user?.username || '',
       city: city,
-      rating: Number(bItem.user?.rating) || 5.0,
+      rating: (bItem.user?.rating !== undefined && bItem.user?.rating !== null && !isNaN(Number(bItem.user?.rating))) ? Number(bItem.user?.rating) : 0,
+      completedSwaps: bItem.user?.completedSwaps ?? bItem.user?.completed_swaps ?? bItem.user?.completed_swaps_count ?? 0,
       avatar: bItem.user?.profile_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80',
       joined: 'Community Member'
     },
@@ -440,10 +441,15 @@ export function ExchangeProvider({ children }) {
           read: false
         };
         setNotifications(prev => [newNotif, ...prev]);
+        await refreshItems();
+        await refreshMyItems();
         await refreshRequests();
         return res.data;
       }
     } catch (err) {
+      if (err.response) {
+        throw err;
+      }
       console.warn('Backend exchange request creation failed, using client simulation:', err?.response?.data || err?.message);
     }
 
@@ -460,6 +466,16 @@ export function ExchangeProvider({ children }) {
     };
 
     setRequests(prev => [newRequest, ...prev]);
+    setItems(prev => prev.map(item => (
+      [requestData.requestedItem?.id, requestData.offeredItem?.id].some(id => String(id) === String(item.id))
+        ? { ...item, status: 'In Exchange' }
+        : item
+    )));
+    setMyItems(prev => prev.map(item => (
+      String(item.id) === String(requestData.offeredItem?.id)
+        ? { ...item, status: 'In Exchange' }
+        : item
+    )));
 
     // Add notification
     const newNotif = {
@@ -611,22 +627,18 @@ export function ExchangeProvider({ children }) {
 
   // Reject Incoming Request
   const rejectRequest = async (requestId) => {
-    try {
-      await exchangeService.rejectExchangeRequest(requestId);
-    } catch (err) {
-      console.warn('Backend reject request failed, updating local state:', err?.response?.data || err?.message);
-    }
+    await exchangeService.rejectExchangeRequest(requestId);
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Rejected' } : r));
+    await refreshItems();
+    await refreshMyItems();
   };
 
   // Cancel Outgoing Request
   const cancelRequest = async (requestId) => {
-    try {
-      await exchangeService.cancelExchangeRequest(requestId);
-    } catch (err) {
-      console.warn('Backend cancel request failed, updating local state:', err?.response?.data || err?.message);
-    }
+    await exchangeService.cancelExchangeRequest(requestId);
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'Cancelled' } : r));
+    await refreshItems();
+    await refreshMyItems();
   };
 
   // Complete Exchange (Direct Handover / In-Person Meetup)

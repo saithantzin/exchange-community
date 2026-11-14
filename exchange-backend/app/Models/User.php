@@ -36,6 +36,13 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = [
+        'completed_swaps_count',
+        'completed_swaps',
+        'completedSwaps',
+        'reviews_count',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -43,6 +50,40 @@ class User extends Authenticatable
             'password' => 'hashed',
             'rating' => 'decimal:2',
         ];
+    }
+
+    public function getCompletedSwapsCountAttribute(): int
+    {
+        return ExchangeRequest::where(function ($q) {
+            $q->where('requester_id', $this->id)
+              ->orWhere('owner_id', $this->id);
+        })->where('status', 'Completed')->count();
+    }
+
+    public function getCompletedSwapsAttribute(): int
+    {
+        return $this->getCompletedSwapsCountAttribute();
+    }
+
+    public function getReviewsCountAttribute(): int
+    {
+        return $this->relationLoaded('reviewsReceived')
+            ? $this->reviewsReceived->count()
+            : $this->reviewsReceived()->count();
+    }
+
+    public function getRatingAttribute($value): float
+    {
+        $count = $this->reviews_count;
+        if ($count === 0) {
+            return 0.0;
+        }
+
+        $avg = $this->relationLoaded('reviewsReceived')
+            ? $this->reviewsReceived->avg('rating')
+            : $this->reviewsReceived()->avg('rating');
+
+        return $avg !== null ? round((float) $avg, 1) : 0.0;
     }
 
     public function isAdmin(): bool

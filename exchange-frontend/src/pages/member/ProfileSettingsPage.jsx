@@ -190,11 +190,11 @@ export default function ProfileSettingsPage() {
               <div className="row g-2 border-top pt-3 text-start small">
                 <div className="col-6">
                   <span className="text-muted d-block">Trust Rating:</span>
-                  <strong className="text-warning fs-6">{currentUser?.rating} ★</strong>
+                  <strong className="text-warning fs-6">{Number(currentUser?.rating || 0) > 0 ? `${Number(currentUser?.rating).toFixed(1)} ★` : '0 ★'}</strong>
                 </div>
                 <div className="col-6">
                   <span className="text-muted d-block">Completed Trades:</span>
-                  <strong className="text-success fs-6">{currentUser?.completedExchanges} Verified</strong>
+                  <strong className="text-success fs-6">{currentUser?.completedSwaps ?? currentUser?.completedExchanges ?? 0} Verified</strong>
                 </div>
               </div>
             </div>

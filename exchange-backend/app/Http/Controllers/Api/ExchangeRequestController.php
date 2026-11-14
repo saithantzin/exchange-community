@@ -22,6 +22,8 @@ class ExchangeRequestController extends Controller
 {
     use ApiResponse;
 
+    private const CLOSED_EXCHANGE_STATUSES = ['Completed', 'Rejected', 'Cancelled'];
+
     /**
      * Get exchange requests for authenticated user (incoming and outgoing).
      */
@@ -74,16 +76,11 @@ class ExchangeRequestController extends Controller
             return $this->errorResponse('Validation failed', 422, $validator->errors());
         }
 
-        $requestedItem = Item::with('township.stateRegion')->findOrFail($request->requested_item_id);
-
-        if ($requestedItem->user_id === $user->id) {
-            return $this->errorResponse('You cannot propose an exchange for your own item listing', 400);
-        }
-
         // Determine offered item ID
         $offeredItemId = $request->offered_item_id;
         if (!$offeredItemId && $request->filled('offered_item_title')) {
-            $foundItem = Item::where('user_id', $user->id)
+            $foundItem = Item::availableForExchange()
+                ->where('user_id', $user->id)
                 ->where('title', 'like', '%' . $request->offered_item_title . '%')
                 ->first();
             if ($foundItem) {
@@ -93,38 +90,77 @@ class ExchangeRequestController extends Controller
 
         // If still no offered item ID, pick user's first available item or require one
         if (!$offeredItemId) {
-            $firstUserItem = Item::where('user_id', $user->id)->first();
+            $firstUserItem = Item::availableForExchange()
+                ->where('user_id', $user->id)
+                ->first();
             if ($firstUserItem) {
                 $offeredItemId = $firstUserItem->id;
             } else {
-                return $this->errorResponse('You must have at least one active item listing to propose an exchange', 400);
+                return $this->errorResponse('You must have an available item listing to propose an exchange', 400);
             }
         }
 
-        $offeredItem = Item::with('township.stateRegion')->findOrFail($offeredItemId);
-
-        // Determine exchange handover type
-        $exchangeType = $request->exchange_type ?? $request->handoverMethod;
-        if (!$exchangeType) {
-            $isIntercity = ($offeredItem->township?->state_region_id && $requestedItem->township?->state_region_id)
-                ? ($offeredItem->township->state_region_id !== $requestedItem->township->state_region_id)
-                : false;
-            $exchangeType = $isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup';
+        if ((int) $offeredItemId === (int) $request->requested_item_id) {
+            return $this->errorResponse('Choose two different items for an exchange proposal', 422);
         }
 
-        $exchangeCode = 'EXC-' . rand(1000, 9999);
+        $result = DB::transaction(function () use ($request, $user, $offeredItemId) {
+            $items = Item::with('township.stateRegion')
+                ->whereIn('id', [$request->requested_item_id, $offeredItemId])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+            $requestedItem = $items->get((int) $request->requested_item_id);
+            $offeredItem = $items->get((int) $offeredItemId);
 
-        $exchangeRequest = ExchangeRequest::create([
-            'exchange_code' => $exchangeCode,
-            'requester_id' => $user->id,
-            'owner_id' => $requestedItem->user_id,
-            'offered_item_id' => $offeredItem->id,
-            'requested_item_id' => $requestedItem->id,
-            'exchange_type' => $exchangeType,
-            'status' => 'Pending',
-            'meetup_location' => $request->meetup_location,
-            'notes' => $request->notes ?? $request->message ?? "I'd love to exchange my {$offeredItem->title} for your {$requestedItem->title}.",
-        ]);
+            if (!$requestedItem || !$offeredItem) {
+                return ['error' => 'One of the selected items is no longer available'];
+            }
+            if ((int) $requestedItem->user_id === (int) $user->id) {
+                return ['error' => 'You cannot propose an exchange for your own item listing'];
+            }
+            if ((int) $offeredItem->user_id !== (int) $user->id) {
+                return ['error' => 'You can only offer an item from your own listings'];
+            }
+            if ($requestedItem->availability_status !== 'Available' || $offeredItem->availability_status !== 'Available') {
+                return ['error' => 'Both items must be available to start an exchange'];
+            }
+            if ($this->hasOpenExchangeForItem($requestedItem->id) || $this->hasOpenExchangeForItem($offeredItem->id)) {
+                return ['error' => 'One of the selected items is already reserved by another exchange request'];
+            }
+
+            $exchangeType = $request->exchange_type ?? $request->handoverMethod;
+            if (!$exchangeType) {
+                $isIntercity = ($offeredItem->township?->state_region_id && $requestedItem->township?->state_region_id)
+                    ? ($offeredItem->township->state_region_id !== $requestedItem->township->state_region_id)
+                    : false;
+                $exchangeType = $isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup';
+            }
+
+            $exchangeRequest = ExchangeRequest::create([
+                'exchange_code' => 'EXC-' . rand(1000, 9999),
+                'requester_id' => $user->id,
+                'owner_id' => $requestedItem->user_id,
+                'offered_item_id' => $offeredItem->id,
+                'requested_item_id' => $requestedItem->id,
+                'exchange_type' => $exchangeType,
+                'status' => 'Pending',
+                'meetup_location' => $request->meetup_location,
+                'notes' => $request->notes ?? $request->message ?? "I'd love to exchange my {$offeredItem->title} for {$requestedItem->title}.",
+            ]);
+
+            $offeredItem->availability_status = 'In Exchange';
+            $offeredItem->save();
+            $requestedItem->availability_status = 'In Exchange';
+            $requestedItem->save();
+
+            return ['request' => $exchangeRequest];
+        });
+        if (isset($result['error'])) {
+            return $this->errorResponse($result['error'], 422);
+        }
+        $exchangeRequest = $result['request'];
 
         $exchangeRequest->load([
             'requester.communicationContacts',
@@ -161,8 +197,10 @@ class ExchangeRequestController extends Controller
         return [
             'requester.communicationContacts',
             'requester.township.stateRegion',
+            'requester.reviewsReceived.reviewer:id,name,profile_image',
             'owner.communicationContacts',
             'owner.township.stateRegion',
+            'owner.reviewsReceived.reviewer:id,name,profile_image',
             'offeredItem.category',
             'offeredItem.images',
             'offeredItem.township.stateRegion',
@@ -176,6 +214,49 @@ class ExchangeRequestController extends Controller
             'refunds.user',
             'reviews',
         ];
+    }
+
+    private function hasOpenExchangeForItem(int $itemId, ?int $exceptExchangeId = null): bool
+    {
+        $query = ExchangeRequest::query()
+            ->whereNotIn('status', self::CLOSED_EXCHANGE_STATUSES)
+            ->where(function ($query) use ($itemId) {
+                $query->where('offered_item_id', $itemId)
+                    ->orWhere('requested_item_id', $itemId);
+            });
+
+        if ($exceptExchangeId !== null) {
+            $query->where('id', '!=', $exceptExchangeId);
+        }
+
+        return $query->exists();
+    }
+
+    private function closePendingRequest(ExchangeRequest $exchangeRequest, string $status): bool
+    {
+        return DB::transaction(function () use ($exchangeRequest, $status) {
+            $lockedRequest = ExchangeRequest::whereKey($exchangeRequest->id)->lockForUpdate()->first();
+            if (!$lockedRequest || $lockedRequest->status !== 'Pending') {
+                return false;
+            }
+
+            $lockedRequest->status = $status;
+            $lockedRequest->save();
+
+            foreach (array_unique([$lockedRequest->offered_item_id, $lockedRequest->requested_item_id]) as $itemId) {
+                $item = Item::whereKey($itemId)->lockForUpdate()->first();
+                if (!$item || $item->availability_status !== 'In Exchange') {
+                    continue;
+                }
+
+                if (!$this->hasOpenExchangeForItem((int) $itemId, $lockedRequest->id)) {
+                    $item->availability_status = 'Available';
+                    $item->save();
+                }
+            }
+
+            return true;
+        });
     }
 
     private function requiresIntercityDeposit(ExchangeRequest $exchange): bool
@@ -263,9 +344,30 @@ class ExchangeRequestController extends Controller
             return $this->errorResponse('Exchange proposal cannot be accepted in status: ' . $req->status, 422);
         }
 
-        DB::transaction(function () use ($req) {
-            $req->status = 'Accepted';
-            $req->save();
+        $accepted = DB::transaction(function () use ($req) {
+            $lockedRequest = ExchangeRequest::whereKey($req->id)->lockForUpdate()->first();
+            if (!$lockedRequest || $lockedRequest->status !== 'Pending') {
+                return false;
+            }
+
+            $items = Item::whereIn('id', [$lockedRequest->offered_item_id, $lockedRequest->requested_item_id])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            if ($items->count() !== 2 || $items->contains(fn (Item $item) => !in_array($item->availability_status, ['Available', 'In Exchange'], true))) {
+                return false;
+            }
+
+            foreach ($items as $item) {
+                if ($this->hasOpenExchangeForItem($item->id, $lockedRequest->id)) {
+                    return false;
+                }
+                $item->availability_status = 'In Exchange';
+                $item->save();
+            }
+
+            $lockedRequest->status = 'Accepted';
+            $lockedRequest->save();
 
             if ($this->requiresIntercityDeposit($req)) {
                 foreach ([
@@ -282,7 +384,12 @@ class ExchangeRequestController extends Controller
                     );
                 }
             }
+
+            return true;
         });
+        if (!$accepted) {
+            return $this->errorResponse('The items are no longer available for this exchange', 422);
+        }
 
         return $this->successResponse(
             $this->formatExchangeResponse($req->fresh($this->getExchangeRelations()), $user),
@@ -306,8 +413,9 @@ class ExchangeRequestController extends Controller
             return $this->errorResponse('Only the listing owner can decline this proposal', 403);
         }
 
-        $req->status = 'Rejected';
-        $req->save();
+        if (!$this->closePendingRequest($req, 'Rejected')) {
+            return $this->errorResponse('Only a pending exchange request can be declined', 422);
+        }
 
         return $this->successResponse(
             $this->formatExchangeResponse($req->fresh($this->getExchangeRelations()), $user),
@@ -331,8 +439,9 @@ class ExchangeRequestController extends Controller
             return $this->errorResponse('Only the requester can cancel this proposal', 403);
         }
 
-        $req->status = 'Cancelled';
-        $req->save();
+        if (!$this->closePendingRequest($req, 'Cancelled')) {
+            return $this->errorResponse('Only a pending exchange request can be cancelled', 422);
+        }
 
         return $this->successResponse(
             $this->formatExchangeResponse($req->fresh($this->getExchangeRelations()), $user),
@@ -384,6 +493,9 @@ class ExchangeRequestController extends Controller
 
         if (in_array($req->status, ['Rejected', 'Cancelled'])) {
             return $this->errorResponse('Cannot confirm an exchange that is ' . $req->status, 422);
+        }
+        if ($req->status === 'Pending') {
+            return $this->errorResponse('The exchange proposal must be accepted before handover confirmation', 422);
         }
 
         // 1. Record this participant's confirmation in MySQL receipt_confirmations table
@@ -744,7 +856,7 @@ class ExchangeRequestController extends Controller
 
         return $this->successResponse([
             'review' => $review,
-            'partner_rating' => $avgRating ? round($avgRating, 2) : 5.0,
+            'partner_rating' => $avgRating ? round($avgRating, 2) : 0.0,
         ], 'Review submitted successfully');
     }
 
@@ -926,6 +1038,10 @@ class ExchangeRequestController extends Controller
             'name' => $isRequester ? ($userName . ' (You)') : ($req->requester?->name ?? 'Requester'),
             'city' => $requesterCity,
             'phone' => $req->requester?->phone ?? '',
+            'avatar' => $req->requester?->profile_image ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&q=80',
+            'rating' => (float) ($req->requester?->rating ?? 0.0),
+            'completedSwaps' => (int) ($req->requester?->completed_swaps_count ?? 0),
+            'completed_swaps' => (int) ($req->requester?->completed_swaps_count ?? 0),
             'telegram' => $requesterTelegram,
             'viber' => $requesterViber,
             'facebook' => $requesterFacebook,
@@ -954,7 +1070,8 @@ class ExchangeRequestController extends Controller
             'viber' => $ownerViber,
             'facebook' => $ownerFacebook,
             'avatar' => $req->owner?->profile_image ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&q=80',
-            'rating' => (float) ($req->owner?->rating ?? 5.0),
+            'rating' => (float) ($req->owner?->rating ?? 0.0),
+            'completedSwaps' => (int) ($req->owner?->completed_swaps_count ?? 0),
             'communicationContacts' => [
                 'telegram' => $ownerTelegram,
                 'viber' => $ownerViber,
@@ -1011,7 +1128,16 @@ class ExchangeRequestController extends Controller
                 'city' => $requesterCity,
                 'phone' => $req->requester?->phone ?? '',
                 'avatar' => $req->requester?->profile_image,
-                'rating' => (float) ($req->requester?->rating ?? 5.0),
+                'rating' => (float) ($req->requester?->rating ?? 0.0),
+                'completedSwaps' => (int) ($req->requester?->completed_swaps_count ?? 0),
+                'completed_swaps' => (int) ($req->requester?->completed_swaps_count ?? 0),
+                'reviewsCount' => (int) ($req->requester?->reviews_count ?? 0),
+                'reviews' => $req->requester?->reviewsReceived?->map(fn($r) => [
+                    'id' => $r->id,
+                    'rating' => (int) $r->rating,
+                    'comment' => (string) $r->comment,
+                    'reviewer' => ['name' => $r->reviewer?->name ?? 'Verified Member'],
+                ])->values()->all() ?? [],
                 'telegram' => $requesterTelegram,
                 'viber' => $requesterViber,
                 'facebook' => $requesterFacebook,
@@ -1022,7 +1148,16 @@ class ExchangeRequestController extends Controller
                 'city' => $ownerCity,
                 'phone' => $req->owner?->phone ?? '',
                 'avatar' => $req->owner?->profile_image,
-                'rating' => (float) ($req->owner?->rating ?? 5.0),
+                'rating' => (float) ($req->owner?->rating ?? 0.0),
+                'completedSwaps' => (int) ($req->owner?->completed_swaps_count ?? 0),
+                'completed_swaps' => (int) ($req->owner?->completed_swaps_count ?? 0),
+                'reviewsCount' => (int) ($req->owner?->reviews_count ?? 0),
+                'reviews' => $req->owner?->reviewsReceived?->map(fn($r) => [
+                    'id' => $r->id,
+                    'rating' => (int) $r->rating,
+                    'comment' => (string) $r->comment,
+                    'reviewer' => ['name' => $r->reviewer?->name ?? 'Verified Member'],
+                ])->values()->all() ?? [],
                 'telegram' => $ownerTelegram,
                 'viber' => $ownerViber,
                 'facebook' => $ownerFacebook,
@@ -1528,7 +1663,12 @@ class ExchangeRequestController extends Controller
         if (!$req) {
             return $this->errorResponse('Exchange record not found', 404);
         }
-        if ($req->status !== 'Completed') {
+
+        $confirmedUsers = ReceiptConfirmation::where('exchange_id', $req->id)->pluck('user_id')->map(fn ($userId) => (int) $userId);
+        $bothConfirmed = $confirmedUsers->contains((int) $req->requester_id)
+            && $confirmedUsers->contains((int) $req->owner_id);
+
+        if ($req->status !== 'Completed' && !$bothConfirmed) {
             return $this->errorResponse('Refunds can only be released after the exchange is completed.', 422);
         }
 
@@ -1675,7 +1815,8 @@ class ExchangeRequestController extends Controller
                 'name' => $exc->requester?->name ?? 'Party A',
                 'city' => $offeredCity,
                 'phone' => $exc->requester?->phone ?? '',
-                'rating' => (float) ($exc->requester?->rating ?? 5.0),
+                'rating' => (float) ($exc->requester?->rating ?? 0.0),
+                'completedSwaps' => (int) ($exc->requester?->completed_swaps_count ?? 0),
                 'avatar' => $exc->requester?->profile_image ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&q=80',
                 'dispatched' => in_array($exc->status, ['Shipping', 'In Transit', 'Partially Received', 'Completed']),
                 'trackingNumber' => '',
@@ -1686,7 +1827,8 @@ class ExchangeRequestController extends Controller
                 'name' => $exc->owner?->name ?? 'Party B',
                 'city' => $requestedCity,
                 'phone' => $exc->owner?->phone ?? '',
-                'rating' => (float) ($exc->owner?->rating ?? 5.0),
+                'rating' => (float) ($exc->owner?->rating ?? 0.0),
+                'completedSwaps' => (int) ($exc->owner?->completed_swaps_count ?? 0),
                 'avatar' => $exc->owner?->profile_image ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80',
                 'dispatched' => in_array($exc->status, ['Shipping', 'In Transit', 'Partially Received', 'Completed']),
                 'trackingNumber' => '',

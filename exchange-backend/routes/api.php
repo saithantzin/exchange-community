@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ExchangeRequestController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SmartMatchController;
 use App\Http\Middleware\EnsureAdmin;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/items', [ItemController::class, 'index']);
 Route::get('/items/{id}', [ItemController::class, 'show']);
 Route::get('/smart-matches', [SmartMatchController::class, 'index']);
+Route::get('/testimonials', [ReviewController::class, 'testimonials']);
 
 // Authenticated Member Routes
 Route::middleware('auth:sanctum')->group(function () {

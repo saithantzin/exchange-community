@@ -91,7 +91,8 @@ function formatUserFromBackend(backendUser) {
       preferredMethod: contacts.preferredMethod || 'telegram'
     },
     bio: backendUser.bio || 'Community member dedicated to mindful item swapping.',
-    rating: Number(backendUser.rating) || 5.0,
+    rating: (backendUser.rating !== undefined && backendUser.rating !== null && !isNaN(Number(backendUser.rating))) ? Number(backendUser.rating) : 0,
+    completedSwaps: backendUser.completedSwaps ?? backendUser.completed_swaps ?? backendUser.completed_swaps_count ?? 0,
     avatar: backendUser.profile_image || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80'
   };
 }

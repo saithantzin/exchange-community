@@ -100,13 +100,13 @@ export default function ItemDetailModal({ item, onClose, onProposeExchange, isLo
                           {item.owner.name}
                         </h6>
                         <span className="text-muted" style={{ fontSize: '0.74rem' }}>
-                          {item.owner.joined} • <strong className="text-success">{item.owner.exchanges} completed swaps</strong>
+                          {item.owner.joined} • <strong className="text-success">{item.owner.completedSwaps ?? item.owner.exchanges ?? 0} completed swaps</strong>
                         </span>
                       </div>
                     </div>
                     <div className="text-end">
                       <span className="badge bg-warning text-dark fw-bold">
-                        {item.owner.rating} ★
+                        {Number(item.owner?.rating || 0) > 0 ? `${Number(item.owner?.rating).toFixed(1)} ★` : '0 ★'}
                       </span>
                     </div>
                   </div>

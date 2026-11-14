@@ -20,12 +20,12 @@ class ItemController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Item::with([
+        $query = Item::availableForExchange()->with([
             'category',
             'township.stateRegion',
             'images',
             'user:id,name,username,phone,rating,profile_image'
-        ])->where('availability_status', '!=', 'Deactivated');
+        ]);
 
         // Search query
         if ($request->filled('q')) {
@@ -117,10 +117,15 @@ class ItemController extends Controller
             'images',
             'user.township.stateRegion',
             'user.communicationContacts',
+            'user.reviewsReceived.reviewer:id,name,profile_image',
         ])->find($id);
 
         if (!$item) {
             return $this->errorResponse('Item not found', 404);
+        }
+
+        if ($item->availability_status === 'Available' && $this->hasOpenExchangeRequests($item)) {
+            $item->availability_status = 'In Exchange';
         }
 
         // Increment view count
@@ -225,6 +230,10 @@ class ItemController extends Controller
             return $this->errorResponse('Unauthorized to modify this item', 403);
         }
 
+        if ($this->hasOpenExchangeRequests($item)) {
+            return $this->errorResponse('This item cannot be edited while an exchange request is pending or in progress', 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|required|string|max:255',
             'category_id' => 'sometimes|required',
@@ -233,7 +242,7 @@ class ItemController extends Controller
             'condition' => 'sometimes|required|string',
             'defects' => 'nullable|string',
             'looking_for' => 'nullable|string|max:255',
-            'availability_status' => 'sometimes|string',
+            'availability_status' => 'prohibited',
             'images' => 'nullable|array',
         ]);
 
@@ -242,7 +251,7 @@ class ItemController extends Controller
         }
 
         $updateData = $request->only([
-            'title', 'description', 'condition', 'defects', 'looking_for', 'availability_status'
+            'title', 'description', 'condition', 'defects', 'looking_for'
         ]);
 
         if ($request->has('category_id')) {
@@ -303,6 +312,10 @@ class ItemController extends Controller
 
         if ($item->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
             return $this->errorResponse('Unauthorized to delete this item', 403);
+        }
+
+        if ($this->hasOpenExchangeRequests($item)) {
+            return $this->errorResponse('This item cannot be deleted while an exchange request is pending or in progress', 422);
         }
 
         $item->delete();
@@ -368,10 +381,33 @@ class ItemController extends Controller
     public function myItems(Request $request): JsonResponse
     {
         $items = Item::with(['category', 'township.stateRegion', 'images', 'user'])
+            ->withExists([
+                'offeredExchangeRequests as has_open_offered_exchange' => fn ($query) => $query->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled']),
+                'requestedExchangeRequests as has_open_requested_exchange' => fn ($query) => $query->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled']),
+            ])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->get();
 
+        $items->each(function (Item $item) {
+            if (
+                $item->availability_status === 'Available'
+                && ($item->has_open_offered_exchange || $item->has_open_requested_exchange)
+            ) {
+                $item->availability_status = 'In Exchange';
+            }
+        });
+
         return $this->successResponse($items, 'My items retrieved');
+    }
+
+    private function hasOpenExchangeRequests(Item $item): bool
+    {
+        return $item->offeredExchangeRequests()
+                ->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled'])
+                ->exists()
+            || $item->requestedExchangeRequests()
+                ->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled'])
+                ->exists();
     }
 }

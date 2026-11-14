@@ -72,7 +72,7 @@ export default function MemberDashboardPage() {
               </h1>
               <span className="text-muted" style={{ fontSize: '0.86rem' }}>
                 <i className="bi bi-geo-alt-fill text-danger me-1"></i>
-                Based in <strong>{currentUser.city}</strong> • {currentUser.rating} ★ Community Trust Score
+                Based in <strong>{currentUser.city}</strong> • {Number(currentUser.rating || 0) > 0 ? `${Number(currentUser.rating).toFixed(1)} ★` : '0 ★'} Community Trust Score
               </span>
             </div>
           </div>
@@ -225,8 +225,13 @@ export default function MemberDashboardPage() {
 
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
                   <div className="small text-muted" style={{ fontSize: '0.86rem' }}>
-                    <i className={`bi ${ongoingExchanges[0].isIntercity ? 'bi-truck text-primary' : 'bi-geo-alt text-brown'} me-1.5`}></i>
-                    Handover: <strong>{ongoingExchanges[0].handoverMethod || (ongoingExchanges[0].isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup')}</strong>
+                    <i className="bi bi-box-seam me-1.5 text-brown" style={{ color: 'var(--primary-brown)' }}></i>
+                    Handover: <strong className="text-dark">{ongoingExchanges[0].handoverMethod || (ongoingExchanges[0].isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup')}</strong>
+                    {(ongoingExchanges[0].initiatedDate || ongoingExchanges[0].date) && (
+                      <span className="ms-2 text-muted">
+                        • Sent: {ongoingExchanges[0].initiatedDate || ongoingExchanges[0].date}
+                      </span>
+                    )}
                   </div>
                   <Link
                     to={`/exchange/${ongoingExchanges[0].id}`}

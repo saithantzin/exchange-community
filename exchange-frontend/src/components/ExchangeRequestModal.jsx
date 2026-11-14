@@ -8,32 +8,37 @@ export default function ExchangeRequestModal({
   currentUser,
   onProposalSuccess
 }) {
-  if (!isOpen || !targetItem) return null;
-
   const { myItems } = useExchange();
+  const availableMyItems = myItems?.filter(item => String(item.status || 'Available').trim().toLowerCase() === 'available') || [];
 
   // Determine initial offered item
-  const initialItemId = targetItem.memberItem?.id 
-    || (myItems?.length > 0 ? myItems[0].id : '');
+  const initialItemId = availableMyItems.some(item => String(item.id) === String(targetItem?.memberItem?.id))
+    ? targetItem.memberItem.id
+    : (availableMyItems[0]?.id || '');
 
   const [selectedItemId, setSelectedItemId] = useState(initialItemId);
   const [handoverType, setHandoverType] = useState('In-Person Meetup');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    if (targetItem.memberItem?.id) {
+    if (!isOpen || !targetItem) return;
+    if (availableMyItems.some(item => String(item.id) === String(targetItem.memberItem?.id))) {
       setSelectedItemId(targetItem.memberItem.id);
-    } else if (myItems?.length > 0 && !selectedItemId) {
-      setSelectedItemId(myItems[0].id);
+    } else if (availableMyItems.length > 0 && !availableMyItems.some(item => String(item.id) === String(selectedItemId))) {
+      setSelectedItemId(availableMyItems[0].id);
     }
-  }, [targetItem, myItems]);
+  }, [isOpen, targetItem, myItems, selectedItemId]);
 
-  const selectedItemObj = myItems?.find(it => String(it.id) === String(selectedItemId)) || myItems?.[0];
+  const selectedItemObj = availableMyItems.find(it => String(it.id) === String(selectedItemId)) || availableMyItems[0];
 
-  const handleSubmit = (e) => {
+  if (!isOpen || !targetItem) return null;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError('');
 
     const chosenItem = selectedItemObj || {
       id: selectedItemId || null,
@@ -41,9 +46,8 @@ export default function ExchangeRequestModal({
       city: currentUser?.city || 'Local'
     };
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      onProposalSuccess({
+    try {
+      await onProposalSuccess({
         targetItem: targetItem.title || targetItem.offeredItem?.title,
         targetItemObj: targetItem.offeredItem || targetItem,
         offeredItem: chosenItem.title,
@@ -52,7 +56,11 @@ export default function ExchangeRequestModal({
         note
       });
       onClose();
-    }, 400);
+    } catch (error) {
+      setSubmitError(error.response?.data?.message || 'Could not send this exchange request. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const itemTitle = targetItem.title || targetItem.offeredItem?.title || 'Selected Item';
@@ -72,6 +80,12 @@ export default function ExchangeRequestModal({
             </div>
             <button type="button" className="btn-close" onClick={onClose} aria-label="Close"></button>
           </div>
+
+          {submitError && (
+            <div className="alert alert-danger py-2 mb-3" role="alert">
+              {submitError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="modal-body p-4">
@@ -98,18 +112,18 @@ export default function ExchangeRequestModal({
                 <label className="form-label fw-semibold small text-dark d-flex justify-content-between align-items-center">
                   <span>Select Your Item to Offer in Return <span className="text-danger">*</span></span>
                   <span className="text-muted fw-normal" style={{ fontSize: '0.74rem' }}>
-                    {myItems?.length || 0} active listing(s)
+                    {availableMyItems.length} available listing(s)
                   </span>
                 </label>
                 
-                {myItems && myItems.length > 0 ? (
+                {availableMyItems.length > 0 ? (
                   <select
                     className="form-select"
                     value={selectedItemId}
                     onChange={(e) => setSelectedItemId(e.target.value)}
                     required
                   >
-                    {myItems.map(item => (
+                    {availableMyItems.map(item => (
                       <option key={item.id} value={item.id}>
                         {item.title} ({item.condition || 'Used'} • {item.city || 'Local'})
                       </option>
@@ -118,7 +132,7 @@ export default function ExchangeRequestModal({
                 ) : (
                   <div className="p-3 rounded-3 bg-warning-subtle border border-warning text-dark small">
                     <i className="bi bi-exclamation-triangle-fill text-warning me-1.5"></i>
-                    You do not have any active item listings. Please list an item first before proposing an exchange.
+                    You do not have any available item listings. Items with pending or active exchanges cannot be offered again.
                   </div>
                 )}
                 <small className="text-muted d-block mt-1">
@@ -190,7 +204,7 @@ export default function ExchangeRequestModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || (!myItems || myItems.length === 0)}
+                disabled={isSubmitting || availableMyItems.length === 0}
                 className="btn-nordic-primary px-4"
               >
                 {isSubmitting ? (

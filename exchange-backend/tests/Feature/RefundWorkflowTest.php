@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\ExchangePayment;
 use App\Models\ExchangeRequest;
 use App\Models\Item;
+use App\Models\ReceiptConfirmation;
 use App\Models\Refund;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -100,6 +101,48 @@ class RefundWorkflowTest extends TestCase
         $this->getJson('/api/admin/exchanges?per_page=100')
             ->assertOk()
             ->assertJsonPath('data.data.0.refundWorkflow.partyA.status', 'Completed');
+    }
+
+    public function test_admin_refund_release_allows_both_confirmed_receipt_even_when_status_is_not_completed(): void
+    {
+        [$requester, $owner, $exchange, $requesterPayment] = $this->createCompletedExchange();
+        $exchange->status = 'Partially Received';
+        $exchange->save();
+
+        ReceiptConfirmation::create([
+            'exchange_id' => $exchange->id,
+            'user_id' => $requester->id,
+            'condition_notes' => 'Parcel received in good condition.',
+            'confirmed_at' => now(),
+        ]);
+        ReceiptConfirmation::create([
+            'exchange_id' => $exchange->id,
+            'user_id' => $owner->id,
+            'condition_notes' => 'Parcel received in good condition.',
+            'confirmed_at' => now(),
+        ]);
+
+        Refund::create([
+            'exchange_id' => $exchange->id,
+            'payment_id' => $requesterPayment->id,
+            'user_id' => $requester->id,
+            'refund_amount' => 50000,
+            'payment_provider' => 'WavePay',
+            'account_number' => '09123456789',
+            'account_name' => 'Thu Thu',
+            'refund_status' => 'Processing Payout',
+        ]);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/admin/exchanges/{$exchange->id}/refund/process", [
+            'partyRole' => 'partyA',
+            'txRef' => 'REF-999999',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.refundWorkflow.partyA.status', 'Completed')
+            ->assertJsonPath('data.refundWorkflow.partyA.refundTransactionRef', 'REF-999999');
     }
 
     private function createCompletedExchange(): array

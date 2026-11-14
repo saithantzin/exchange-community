@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,8 +45,25 @@ class Item extends Model
         return $this->hasMany(ItemImage::class, 'item_id');
     }
 
+    public function offeredExchangeRequests(): HasMany
+    {
+        return $this->hasMany(ExchangeRequest::class, 'offered_item_id');
+    }
+
+    public function requestedExchangeRequests(): HasMany
+    {
+        return $this->hasMany(ExchangeRequest::class, 'requested_item_id');
+    }
+
     public function favorites(): HasMany
     {
         return $this->hasMany(Favorite::class, 'item_id');
+    }
+
+    public function scopeAvailableForExchange(Builder $query): Builder
+    {
+        return $query->where('availability_status', 'Available')
+            ->whereDoesntHave('offeredExchangeRequests', fn (Builder $requests) => $requests->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled']))
+            ->whereDoesntHave('requestedExchangeRequests', fn (Builder $requests) => $requests->whereNotIn('status', ['Completed', 'Rejected', 'Cancelled']));
     }
 }

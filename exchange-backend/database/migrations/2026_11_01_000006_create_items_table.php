@@ -17,7 +17,7 @@ return new class extends Migration
             $table->text('description');
             $table->string('condition')->default('Like New'); // Brand New, Like New, Lightly Used, Well Used
             $table->string('looking_for')->nullable(); // Desired item or category in exchange
-            $table->string('availability_status')->default('Available'); // Available, Pending, Exchanged, Deactivated
+            $table->string('availability_status')->default('Available'); // Available, In Exchange, Not Available, Deactivated
             $table->unsignedBigInteger('views')->default(0);
             $table->timestamps();
         });

@@ -32,9 +32,8 @@ class SmartMatchController extends Controller
 
         // 1. Items listed by current authenticated member
         $userItems = $user
-            ? Item::with(['category', 'township.stateRegion', 'images', 'user'])
+            ? Item::availableForExchange()->with(['category', 'township.stateRegion', 'images', 'user'])
                 ->where('user_id', $user->id)
-                ->where('availability_status', 'Available')
                 ->get()
             : collect();
 
@@ -50,8 +49,7 @@ class SmartMatchController extends Controller
         }
 
         // 2. Candidate items from other members
-        $otherItemsQuery = Item::with(['category', 'township.stateRegion', 'images', 'user'])
-            ->where('availability_status', 'Available');
+        $otherItemsQuery = Item::availableForExchange()->with(['category', 'township.stateRegion', 'images', 'user']);
 
         if ($user) {
             $otherItemsQuery->where('user_id', '!=', $user->id);
@@ -92,8 +90,7 @@ class SmartMatchController extends Controller
             }
         } elseif (!$user && empty($matches)) {
             // Only for guest visitors, calculate pairs across active community items as a preview
-            $allAvailable = Item::with(['category', 'township.stateRegion', 'images', 'user'])
-                ->where('availability_status', 'Available')
+            $allAvailable = Item::availableForExchange()->with(['category', 'township.stateRegion', 'images', 'user'])
                 ->latest()
                 ->get();
 

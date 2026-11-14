@@ -3,6 +3,24 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useExchange } from '../../context/ExchangeContext';
 
+const getStatusBadgeStyle = (status) => {
+  const normalized = String(status || 'Available').trim().toLowerCase();
+
+  if (normalized === 'available') {
+    return { backgroundColor: '#EAF2EC', color: '#2E693D', border: '1px solid #BFE0C5' };
+  }
+
+  if (normalized === 'in exchange' || normalized.includes('active swap') || normalized.includes('ongoing') || normalized.includes('in progress') || normalized.includes('swap')) {
+    return { backgroundColor: '#F9F1E2', color: '#87571B', border: '1px solid #E0D0A6' };
+  }
+
+  if (normalized === 'completed' || normalized.includes('not available') || normalized.includes('unavailable')) {
+    return { backgroundColor: '#FDE8E8', color: '#9B1C1C', border: '1px solid #EDB9B9' };
+  }
+
+  return { backgroundColor: '#EEF2F7', color: '#334155', border: '1px solid #CBD5E1' };
+};
+
 export default function MyItemsPage() {
   const { currentUser } = useAuth();
   const { myItems, deleteItem, refreshMyItems } = useExchange();
@@ -19,7 +37,11 @@ export default function MyItemsPage() {
 
   const filteredItems = myItems.filter(item => {
     if (statusFilter === 'all') return true;
-    return (item.status || 'Available').toLowerCase() === statusFilter.toLowerCase();
+    const status = String(item.status || 'Available').trim().toLowerCase();
+    if (statusFilter === 'not available') {
+      return ['not available', 'unavailable', 'completed'].includes(status);
+    }
+    return status === statusFilter;
   });
 
   const handleDelete = (id) => {
@@ -72,6 +94,12 @@ export default function MyItemsPage() {
             >
               In Active Swap
             </button>
+            <button
+              onClick={() => setStatusFilter('not available')}
+              className={`btn ${statusFilter === 'not available' ? 'btn-dark' : 'btn-outline-secondary'}`}
+            >
+              Not Available
+            </button>
           </div>
 
           <span className="text-muted small">
@@ -100,7 +128,12 @@ export default function MyItemsPage() {
 
         {/* Items Grid */}
         <div className="row g-4">
-          {filteredItems.map(item => (
+          {filteredItems.map(item => {
+            const statusText = item.status || 'Available';
+            const statusStyle = getStatusBadgeStyle(statusText);
+            const isInExchange = String(statusText).trim().toLowerCase() === 'in exchange';
+
+            return (
             <div key={item.id} className="col-12 col-md-6 col-lg-4">
               <div className="bg-white rounded-3 border shadow-sm overflow-hidden h-100 d-flex flex-column" style={{ borderColor: 'var(--border-light)' }}>
                 
@@ -135,8 +168,8 @@ export default function MyItemsPage() {
                     <span className="text-uppercase text-muted fw-semibold" style={{ fontSize: '0.74rem', letterSpacing: '0.1em' }}>
                       {item.categoryName || item.category || 'General'}
                     </span>
-                    <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1" style={{ fontSize: '0.74rem' }}>
-                      {item.status || 'Available'}
+                    <span className="badge px-2.5 py-1" style={{ ...statusStyle, fontSize: '0.74rem' }}>
+                      {statusText}
                     </span>
                   </div>
 
@@ -168,29 +201,38 @@ export default function MyItemsPage() {
                       <i className="bi bi-eye"></i> View Public
                     </Link>
 
-                    <Link
-                      to={`/edit-item/${item.id}`}
-                      className="btn btn-sm btn-outline-dark w-50 py-2"
-                      style={{ fontSize: '0.84rem' }}
-                    >
-                      <i className="bi bi-pencil"></i> Edit
-                    </Link>
+                    {isInExchange ? (
+                      <span className="badge bg-warning-subtle text-warning-emphasis border d-inline-flex align-items-center gap-1 px-3">
+                        <i className="bi bi-lock-fill"></i> Reserved
+                      </span>
+                    ) : (
+                      <>
+                        <Link
+                          to={`/edit-item/${item.id}`}
+                          className="btn btn-sm btn-outline-dark w-50 py-2"
+                          style={{ fontSize: '0.84rem' }}
+                        >
+                          <i className="bi bi-pencil"></i> Edit
+                        </Link>
 
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmId(item.id)}
-                      className="btn btn-sm btn-outline-danger px-2.5 py-2"
-                      title="Delete item"
-                    >
-                      <i className="bi bi-trash"></i>
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          className="btn btn-sm btn-outline-danger px-2.5 py-2"
+                          title="Delete item"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </>
+                    )}
                   </div>
 
                 </div>
 
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
 
         {/* Delete Confirmation Modal */}

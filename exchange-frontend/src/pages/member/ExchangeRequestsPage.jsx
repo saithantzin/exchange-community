@@ -113,6 +113,12 @@ export default function ExchangeRequestsPage() {
         text: 'You declined this exchange offer.'
       });
       setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setToastMessage({
+        title: 'Could not decline proposal',
+        text: error.response?.data?.message || 'Please try again.',
+        isError: true
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -127,6 +133,12 @@ export default function ExchangeRequestsPage() {
         text: 'Your outgoing proposal has been withdrawn.'
       });
       setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setToastMessage({
+        title: 'Could not cancel proposal',
+        text: error.response?.data?.message || 'Please try again.',
+        isError: true
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -142,7 +154,7 @@ export default function ExchangeRequestsPage() {
             className="position-fixed bottom-0 end-0 m-4 p-3 bg-white border rounded-3 shadow-lg d-flex align-items-center gap-3"
             style={{ zIndex: 1090, maxWidth: '480px', borderColor: 'var(--primary-brown)', borderLeftWidth: '6px' }}
           >
-            <i className="bi bi-check-circle-fill fs-3 text-success"></i>
+            <i className={`bi fs-3 ${toastMessage.isError ? 'bi-exclamation-triangle-fill text-danger' : 'bi-check-circle-fill text-success'}`}></i>
             <div className="flex-grow-1" style={{ fontSize: '0.85rem' }}>
               <div className="fw-bold text-dark">{toastMessage.title}</div>
               <div className="text-muted">{toastMessage.text}</div>
@@ -276,7 +288,7 @@ export default function ExchangeRequestsPage() {
                               </h6>
                               <span className="text-muted" style={{ fontSize: '0.78rem' }}>
                                 <i className="bi bi-geo-alt-fill text-danger me-0.5"></i>
-                                {req.requester.city} • <span className="text-warning-emphasis font-bold">{req.requester.rating}★</span>
+                                {req.requester.city} • <span className="text-warning-emphasis font-bold">{Number(req.requester.rating || 0) > 0 ? `${Number(req.requester.rating).toFixed(1)}★` : '0★'}</span>
                               </span>
                             </div>
                           </div>
@@ -452,10 +464,10 @@ export default function ExchangeRequestsPage() {
                             <div className="mt-2 pt-1 border-top d-flex flex-wrap justify-content-between align-items-center text-muted" style={{ fontSize: '0.78rem' }}>
                               <span>
                                 <i className="bi bi-box-seam me-1 text-brown" style={{ color: 'var(--primary-brown)' }}></i>
-                                Handover: <strong className="text-dark">{req.handoverMethod}</strong>
+                                Handover: <strong className="text-dark">{req.handoverMethod || (req.isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup')}</strong>
                               </span>
                               <span className="text-muted">
-                                Sent: {req.date}
+                                Sent: {req.date || 'Recent'}
                               </span>
                             </div>
                           </div>
@@ -744,6 +756,24 @@ export default function ExchangeRequestsPage() {
                               </div>
                             </div>
                           )}
+
+                          {/* Proposal Message */}
+                          {req.message && (
+                            <div className="mt-2.5 pt-2 border-top text-muted" style={{ fontSize: '0.82rem', lineHeight: 1.55 }}>
+                              <i className="bi bi-chat-left-quote me-1 text-primary"></i> "{req.message}"
+                            </div>
+                          )}
+
+                          {/* Handover & City Route Indicator */}
+                          <div className="mt-2 pt-1 border-top d-flex flex-wrap justify-content-between align-items-center text-muted" style={{ fontSize: '0.78rem' }}>
+                            <span>
+                              <i className="bi bi-box-seam me-1 text-brown" style={{ color: 'var(--primary-brown)' }}></i>
+                              Handover: <strong className="text-dark">{req.handoverMethod || (req.isIntercity ? 'Intercity Courier Delivery' : 'In-Person Meetup')}</strong>
+                            </span>
+                            <span className="text-muted">
+                              Sent: {req.date || 'Recent'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 

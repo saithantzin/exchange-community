@@ -111,7 +111,7 @@ export default function MemberProfileModal({
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-warning-emphasis fs-5 mb-0">
                     <i className="bi bi-star-fill text-warning me-1"></i>
-                    {member.rating ? Number(member.rating).toFixed(1) : 5.0}★
+                    {Number(member.rating || 0) > 0 ? `${Number(member.rating).toFixed(1)}★` : '0★'}
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Community Rating</span>
                 </div>
@@ -120,7 +120,7 @@ export default function MemberProfileModal({
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-success fs-5 mb-0">
                     <i className="bi bi-arrow-repeat me-1"></i>
-                    {member.completedSwaps ?? member.exchanges ?? 0}
+                    {member.completedSwaps ?? member.completed_swaps ?? member.completed_swaps_count ?? member.exchanges ?? 0}
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Completed Swaps</span>
                 </div>
@@ -138,7 +138,7 @@ export default function MemberProfileModal({
               <div className="col-6 col-md-3">
                 <div className="p-3 rounded-3 border bg-light h-100">
                   <div className="fw-bold text-dark fs-5 mb-0">
-                    <i className="bi bi-shield-check text-success me-1"></i> {member.rating ? Math.round((Number(member.rating) / 5) * 100) + '%' : '100%'}
+                    <i className="bi bi-shield-check text-success me-1"></i> {Number(member.rating || 0) > 0 ? `${Math.round((Number(member.rating) / 5) * 100)}%` : 'New Member'}
                   </div>
                   <span className="text-muted small" style={{ fontSize: '0.78rem' }}>Trust Score</span>
                 </div>
@@ -282,6 +282,36 @@ export default function MemberProfileModal({
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Member Reviews & Feedback */}
+            <div className="p-3.5 rounded-3 border mb-4 bg-white" style={{ borderColor: 'var(--border-light, #EBE2D8)' }}>
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="fw-bold text-dark small d-flex align-items-center gap-1.5">
+                  <i className="bi bi-star-half text-warning"></i>
+                  Member Reviews & Reputation
+                </span>
+                <span className="badge bg-light text-dark border small" style={{ fontSize: '0.70rem' }}>
+                  {Number(member.rating || 0) > 0 ? `${Number(member.rating).toFixed(1)}★ Rating` : '0 Reviews'}
+                </span>
+              </div>
+              {member.reviews && member.reviews.length > 0 ? (
+                <div className="d-flex flex-column gap-2 mt-2">
+                  {member.reviews.map(rev => (
+                    <div key={rev.id} className="p-2.5 rounded-2 bg-light border" style={{ fontSize: '0.78rem' }}>
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="fw-semibold text-dark">{rev.reviewer?.name || 'Verified Member'}</span>
+                        <span className="text-warning fw-bold">{rev.rating} ★</span>
+                      </div>
+                      <p className="text-muted mb-0 fst-italic">"{rev.comment}"</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-muted small py-2 text-center fst-italic" style={{ fontSize: '0.80rem' }}>
+                  No community reviews recorded yet. Rating displays 0★ until a verified swap review is completed.
+                </div>
+              )}
             </div>
 
             {/* Active Listings by Member */}

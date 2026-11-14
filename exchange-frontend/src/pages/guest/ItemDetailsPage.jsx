@@ -59,10 +59,13 @@ export default function ItemDetailsPage() {
                 username: bItem.user?.username || '',
                 phone: bItem.user?.phone || '',
                 city: ownerCity,
-                rating: Number(bItem.user?.rating) || 5.0,
+                rating: (bItem.user?.rating !== undefined && bItem.user?.rating !== null && !isNaN(Number(bItem.user?.rating))) ? Number(bItem.user?.rating) : 0,
                 avatar: bItem.user?.profile_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80',
                 joined: bItem.user?.created_at ? `Member since ${new Date(bItem.user.created_at).getFullYear()}` : 'Community Member',
-                exchanges: bItem.user?.completed_swaps || 0
+                exchanges: bItem.user?.completedSwaps ?? bItem.user?.completed_swaps ?? bItem.user?.completed_swaps_count ?? 0,
+                completedSwaps: bItem.user?.completedSwaps ?? bItem.user?.completed_swaps ?? bItem.user?.completed_swaps_count ?? 0,
+                reviewsCount: bItem.user?.reviews_count ?? (bItem.user?.reviews_received?.length || 0),
+                reviews: bItem.user?.reviews_received || bItem.user?.reviewsReceived || [],
               },
               status: bItem.availability_status || 'Available',
               createdAt: bItem.created_at ? new Date(bItem.created_at).toLocaleDateString() : 'Recently',
@@ -101,6 +104,7 @@ export default function ItemDetailsPage() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const itemIsAvailable = String(item?.status || 'Available').trim().toLowerCase() === 'available';
 
   if (loading) {
     return (
@@ -143,6 +147,7 @@ export default function ItemDetailsPage() {
   );
 
   const handleProposeClick = () => {
+    if (!itemIsAvailable) return;
     if (!isLoggedIn) {
       navigate('/login', { state: { from: `/item/${item.id}` } });
     } else {
@@ -163,11 +168,13 @@ export default function ItemDetailsPage() {
         handoverMethod: proposalData.handoverType,
         message: proposalData.note || `I'd love to exchange my item for your ${item.title}.`
       });
+      setFetchedItem(previous => previous ? { ...previous, status: 'In Exchange' } : previous);
       setToastMessage(`Your proposal has been sent to ${item.owner?.name || 'the listing owner'}! Waiting for review.`);
       setTimeout(() => setToastMessage(null), 5000);
     } catch {
       setToastMessage('Could not transmit exchange proposal. Please try again.');
       setTimeout(() => setToastMessage(null), 5000);
+      throw new Error('Exchange request could not be created');
     }
   };
 
@@ -372,7 +379,7 @@ export default function ItemDetailsPage() {
                     </span>
                     <div className="d-flex align-items-center gap-2 mt-1.5">
                       <span className="badge bg-light text-dark border px-2.5 py-1" style={{ fontSize: '0.75rem' }}>
-                        <i className="bi bi-check-circle-fill text-success me-1"></i> {item.owner?.exchanges || 0} completed swaps
+                        <i className="bi bi-check-circle-fill text-success me-1"></i> {item.owner?.completedSwaps ?? item.owner?.exchanges ?? 0} completed swaps
                       </span>
                     </div>
                   </div>
@@ -380,13 +387,33 @@ export default function ItemDetailsPage() {
 
                 <div className="text-end">
                   <span className="badge bg-warning text-dark fw-bold px-3 py-1.5" style={{ fontSize: '0.92rem' }}>
-                    {item.owner?.rating || 5.0} ★
+                    {Number(item.owner?.rating || 0) > 0 ? `${Number(item.owner?.rating).toFixed(1)} ★` : '0 ★'}
                   </span>
                   <span className="d-block text-muted mt-1" style={{ fontSize: '0.74rem' }}>
-                    Community Trust
+                    {Number(item.owner?.rating || 0) > 0 ? 'Community Trust' : 'No Ratings Yet'}
                   </span>
                 </div>
               </div>
+
+              {/* Member Feedback Reviews */}
+              {item.owner?.reviews && item.owner.reviews.length > 0 && (
+                <div className="mt-3 pt-3 border-top">
+                  <div className="fw-bold small text-dark d-flex align-items-center gap-1.5 mb-2" style={{ fontSize: '0.80rem' }}>
+                    <i className="bi bi-chat-quote-fill text-warning"></i> Recent Feedback ({item.owner.reviews.length})
+                  </div>
+                  <div className="d-flex flex-column gap-2">
+                    {item.owner.reviews.map(rev => (
+                      <div key={rev.id} className="p-2.5 rounded-2 bg-light border" style={{ fontSize: '0.78rem' }}>
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <span className="fw-semibold text-dark">{rev.reviewer?.name || 'Verified Member'}</span>
+                          <span className="text-warning fw-bold">{rev.rating} ★</span>
+                        </div>
+                        <p className="text-muted mb-0 fst-italic">"{rev.comment}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* Privacy Notice */}
               <div className="mt-3 pt-3 border-top text-muted" style={{ fontSize: '0.78rem', lineHeight: 1.55 }}>
@@ -396,6 +423,7 @@ export default function ItemDetailsPage() {
 
             {/* CTA Buttons / Owner Actions */}
             {isOwner ? (
+              itemIsAvailable ? (
               <div>
                 <div className="alert alert-secondary py-3 px-3 mb-3 d-flex align-items-center gap-2 rounded-3 border" style={{ fontSize: '0.86rem', borderColor: 'var(--border-medium)' }}>
                   <i className="bi bi-person-check-fill text-primary fs-5 flex-shrink-0"></i>
@@ -420,7 +448,18 @@ export default function ItemDetailsPage() {
                   </Link>
                 </div>
               </div>
+              ) : (
+                <div className="alert alert-warning mb-0 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                  <span>
+                    {String(item.status).toLowerCase() === 'in exchange'
+                      ? 'This item is reserved during a pending or active exchange.'
+                      : 'This item is not available for new exchanges.'}
+                  </span>
+                  <Link to="/my-items" className="btn btn-sm btn-outline-dark">Manage My Items</Link>
+                </div>
+              )
             ) : (
+              itemIsAvailable ? (
               <div className="d-flex gap-3">
                 <button
                   type="button"
@@ -443,6 +482,11 @@ export default function ItemDetailsPage() {
                   <i className="bi bi-flag"></i>
                 </button>
               </div>
+              ) : (
+                <div className="alert alert-secondary mb-0" role="status">
+                  This item is {item.status || 'not available'} and cannot receive new exchange requests.
+                </div>
+              )
             )}
 
             {!isLoggedIn && (

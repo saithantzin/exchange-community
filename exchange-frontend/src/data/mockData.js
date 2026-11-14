@@ -861,36 +861,6 @@ export const SMART_MATCHES_DATA = [
   }
 ];
 
-export const TESTIMONIALS_DATA = [
-  {
-    id: 1,
-    name: 'Aye Chan Moe',
-    city: 'Mandalay (MDY)',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&q=80',
-    rating: 5,
-    exchangeSummary: 'Exchanged Canon DSLR Lens for an Ultra-wide Monitor',
-    comment: 'Meeting in person gave me complete peace of mind. We met at a cafe near 78th street, inspected each other\'s gear, and confirmed the swap right on our phones.'
-  },
-  {
-    id: 2,
-    name: 'Kaung Sett Naing',
-    city: 'Yangon (YGN)',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&q=80',
-    rating: 5,
-    exchangeSummary: 'Local Swap: Wooden Bookshelf for Coffee Table',
-    comment: 'Swapping items directly within our community was seamless. We met at a central spot, verified our items, and completed the trade with zero hassle.'
-  },
-  {
-    id: 3,
-    name: 'Eaint Thet Phoo',
-    city: 'Mandalay (MDY)',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&q=80',
-    rating: 5,
-    exchangeSummary: 'Exchanged 8 University Textbooks for Kitchenware',
-    comment: 'Instead of having heavy books gather dust in my closet after graduation, another student got them, and I received lovely coffee cups for my new flat. Truly sustainable!'
-  }
-];
-
 export const PLATFORM_STATS = {
   itemsExchanged: '14,280',
   activeMembers: '6,420',
